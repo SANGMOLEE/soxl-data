@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: collect
-  cancel-in-progress: false
+  cancel-in-progress: true    # 새로 누르면 낡은 회차를 즉시 취소한다
 
 jobs:
   collect:
@@ -28,6 +28,13 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+
+      - name: 버전 확인
+        run: |
+          echo "=============================="
+          echo "  workflow v1.5"
+          echo "  commit : ${GITHUB_SHA}"
+          echo "=============================="
 
       - name: 의존성 설치
         run: pip install -r requirements.txt
