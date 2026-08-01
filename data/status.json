@@ -1,11 +1,9 @@
 {
-  "status": "STALE",
-  "updated_at_kst": "2026-08-01 18:51:21",
+  "status": "SUCCESS",
+  "updated_at_kst": "2026-08-01 19:43:29",
   "last_us_session": "2026-07-31",
   "failed": [],
-  "stale": [
-    "DEXKOUS"
-  ],
+  "stale": [],
   "series": {
     "SPY": {
       "last": "2026-07-31",
@@ -59,7 +57,7 @@
     },
     "BAMLH0A0HYM2": {
       "last": "2026-07-30",
-      "rows": 787,
+      "rows": 7725,
       "type": "macro"
     },
     "T10Y2Y": {
