@@ -1,0 +1,86 @@
+{
+  "status": "STALE",
+  "updated_at_kst": "2026-08-01 18:51:21",
+  "last_us_session": "2026-07-31",
+  "failed": [],
+  "stale": [
+    "DEXKOUS"
+  ],
+  "series": {
+    "SPY": {
+      "last": "2026-07-31",
+      "rows": 4421,
+      "type": "price"
+    },
+    "SOX": {
+      "last": "2026-07-31",
+      "rows": 8116,
+      "type": "price"
+    },
+    "SOXL": {
+      "last": "2026-07-31",
+      "rows": 4151,
+      "type": "price"
+    },
+    "SOXS": {
+      "last": "2026-07-31",
+      "rows": 4123,
+      "type": "price"
+    },
+    "SOXX": {
+      "last": "2026-07-31",
+      "rows": 4132,
+      "type": "price"
+    },
+    "NVDA": {
+      "last": "2026-07-31",
+      "rows": 4122,
+      "type": "price"
+    },
+    "MU": {
+      "last": "2026-07-31",
+      "rows": 4170,
+      "type": "price"
+    },
+    "QQQ": {
+      "last": "2026-07-31",
+      "rows": 4421,
+      "type": "price"
+    },
+    "VIXCLS": {
+      "last": "2026-07-30",
+      "rows": 9241,
+      "type": "macro"
+    },
+    "NFCI": {
+      "last": "2026-07-24",
+      "rows": 2899,
+      "type": "macro"
+    },
+    "BAMLH0A0HYM2": {
+      "last": "2026-07-30",
+      "rows": 787,
+      "type": "macro"
+    },
+    "T10Y2Y": {
+      "last": "2026-07-31",
+      "rows": 12538,
+      "type": "macro"
+    },
+    "DEXKOUS": {
+      "last": "2026-07-24",
+      "rows": 11318,
+      "type": "macro"
+    },
+    "FEAR_GREED": {
+      "last": "2026-07-31",
+      "rows": 3915,
+      "type": "sentiment"
+    }
+  },
+  "manual_required": {
+    "korea_semi_export": "관세청 무역통계 — 월 1회. data/manual/korea_export.csv",
+    "finra_margin": "FINRA 신용융자잔고 — 월 1회. data/manual/finra_margin.csv",
+    "etf_flows": "SOXL/SOXS 자금흐름 — 공개 API 없음"
+  }
+}
