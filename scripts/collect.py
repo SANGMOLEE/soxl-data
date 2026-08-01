@@ -34,6 +34,9 @@ STATUS = {}         # 상태파일용
 def ev(level, target, msg):
     EVENT.append({"ts": NOW.isoformat(), "level": level, "target": target, "message": msg})
     print(f"  [{level}] {target}: {msg}")
+    # v1.6 — 경고를 상태파일에 반영한다. 조용한 실패를 없애기 위함.
+    if level == "WARN":
+        STATUS.setdefault("warned", []).append(f"{target}: {msg[:80]}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -66,12 +69,15 @@ def validate_ohlc(df, name):
     if "volume" in df and (df["volume"].fillna(0) < 0).any():
         bad.append("거래량 음수"); fatal = True
 
-    # 분할 의심
+    # 분할 의심 — v1.6: 최근 발생분은 별도 표시(소급 재조정 필요 가능성)
     chg = c.pct_change().abs()
     spike = chg[chg > C.MAX_DAILY_MOVE]
     if len(spike):
-        bad.append(f"급변 {len(spike)}건 (분할 의심): "
-                   + ", ".join(str(d.date()) for d in df.loc[spike.index, 'date'][:3]))
+        dts = [str(d.date()) for d in df.loc[spike.index, "date"]]
+        bad.append(f"급변 {len(spike)}건 (분할 소급 미조정 의심): " + ", ".join(dts[:5]))
+        recent = [d for d in dts if d >= (NOW - timedelta(days=180)).strftime("%Y-%m-%d")]
+        if recent:
+            bad.append(f"★ 최근 180일 내 급변 {recent} — 제공처 분할 조정 확인 필요")
 
     return (not fatal), bad
 
@@ -214,6 +220,21 @@ def collect_prices():
 
         merged = (merged.drop_duplicates("date", keep="first")
                         .sort_values("date").reset_index(drop=True))
+
+        # ── v1.6 유령행 차단 ──────────────────────────────────
+        # 거래일이 아닌 날짜의 행(휴일에 직전 종가가 채워진 것,
+        # 액면분할 미조정가 등)을 상시 제거한다.
+        # 2026-08-01 감사에서 34건 발견 — SOXL 연변동성 1,383% 유발.
+        if ref_dates is not None and name != C.CALENDAR_REF:
+            cal = set(ref_dates)
+            cal_start = min(ref_dates)
+            before = len(merged)
+            ghost = merged[(~merged["date"].isin(cal)) & (merged["date"] >= cal_start)]
+            if len(ghost):
+                ev("WARN", name, f"유령행 {len(ghost)}건 제거 — "
+                   + ", ".join(str(d.date()) for d in ghost["date"][:5]))
+                merged = merged[merged["date"].isin(cal) | (merged["date"] < cal_start)]
+                merged = merged.reset_index(drop=True)
 
         okflag, issues = validate_ohlc(merged, name)
         for i in issues:
@@ -377,8 +398,12 @@ def write_status(prices, macro, fg):
             if pd.Timestamp(v["last"]) < cut:
                 stale.append(k)
 
+    warned = STATUS.get("warned", [])
     st = {
-        "status": "FAILED" if failed else ("STALE" if stale else "SUCCESS"),
+        "status": ("FAILED" if failed else
+                   "WARN"   if warned else      # v1.6 — 경고도 상태로 드러낸다
+                   "STALE"  if stale  else "SUCCESS"),
+        "warned": warned,
         "updated_at_kst": NOW.strftime("%Y-%m-%d %H:%M:%S"),
         "last_us_session": last_session,
         "failed": failed,
