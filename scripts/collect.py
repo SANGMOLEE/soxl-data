@@ -239,24 +239,55 @@ def collect_prices():
 #  FRED
 # ══════════════════════════════════════════════════════════════
 def collect_fred():
+    """
+    주의: FRED 그래프 API는 시리즈에 따라 기본 조회창이 잘린다.
+    따라서 (1) cosd 로 전 기간을 강제하고 (2) 그래도 짧게 오면
+    기존 데이터를 절대 덮어쓰지 않고 신규분만 append 한다.
+    """
     out = {}
     for sid in C.FRED:
         path = os.path.join(MACRO, f"{sid}.csv")
+        old  = read_master(path)
         try:
-            raw = pd.read_csv(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}")
+            url = (f"https://fred.stlouisfed.org/graph/fredgraph.csv"
+                   f"?id={sid}&cosd={C.FRED_START}&coed={NOW:%Y-%m-%d}")
+            raw = pd.read_csv(url)
             raw.columns = ["date", "value"]
-            raw["date"] = pd.to_datetime(raw["date"])
+            raw["date"]  = pd.to_datetime(raw["date"])
             raw["value"] = pd.to_numeric(raw["value"], errors="coerce")
-            raw = raw.dropna().sort_values("date").reset_index(drop=True)
-            raw["source"] = "fred"
-            if raw.empty:
+            new = raw.dropna().sort_values("date").reset_index(drop=True)
+            new["source"] = "fred"
+            if new.empty:
                 raise ValueError("전량 결측")
-            safe_write(raw, path, sid)
-            out[sid] = raw
+
+            if old is not None and len(old):
+                # 절단 탐지 — 신규가 기존 시작일보다 늦게 시작하면 경고
+                if new["date"].min() > old["date"].min():
+                    ev("WARN", sid,
+                       f"제공처 절단 감지 — 수신 시작일 {new['date'].min().date()} > "
+                       f"보유 시작일 {old['date'].min().date()}. 기존 이력 보존하고 신규분만 추가")
+                if len(new) < len(old) * C.SHRINK_GUARD:
+                    ev("WARN", sid, f"수신 {len(new)}행 < 보유 {len(old)}행 — 덮어쓰기 금지 적용")
+
+                add = new[new["date"] > old["date"].max()]
+                merged = pd.concat([old, add], ignore_index=True)
+                ev("INFO", sid, f"신규 {len(add)}행 추가")
+            else:
+                merged = new
+                ev("INFO", sid, f"최초 수집 {len(new)}행")
+
+            merged = (merged.drop_duplicates("date", keep="first")
+                            .sort_values("date").reset_index(drop=True))
+
+            # 최종 안전장치 — 어떤 경우에도 행수가 줄면 저장하지 않는다
+            if old is not None and len(merged) < len(old):
+                raise ValueError(f"병합 후 행수 감소 {len(old)}→{len(merged)}")
+
+            safe_write(merged, path, sid)
+            out[sid] = merged
         except Exception as e:
             ev("FAIL", sid, f"{type(e).__name__}: {str(e)[:60]} (기존 파일 유지)")
             STATUS.setdefault("failed", []).append(sid)
-            old = read_master(path)
             if old is not None:
                 out[sid] = old
         time.sleep(0.8)
@@ -336,12 +367,12 @@ def write_status(prices, macro, fg):
                                 "rows": len(fg), "type": "sentiment"}
 
     failed = STATUS.get("failed", [])
-    # 신선도 판정 — 일간 시계열만 대상 (NFCI는 주간이라 제외)
+    # 신선도 판정 — 발표 지연이 정상인 시리즈는 제외
     stale = []
     if last_session:
         cut = pd.Timestamp(last_session) - pd.Timedelta(days=C.STALE_DAYS)
         for k, v in series.items():
-            if k in ("NFCI",):
+            if k in C.STALE_EXEMPT:
                 continue
             if pd.Timestamp(v["last"]) < cut:
                 stale.append(k)

@@ -30,8 +30,22 @@ FRED = {
 # ── 심리지표 ────────────────────────────────────────────────
 FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
+# FRED 그래프 API는 시리즈에 따라 기본 조회창이 최근 몇 년으로 잘린다.
+# (2026-08-01 확인: BAMLH0A0HYM2 가 27년치 → 3년치로 절단됨)
+# cosd/coed 를 명시해 전 기간을 강제한다.
+FRED_START = "1776-07-04"
+
 # ── 검증 임계값 ─────────────────────────────────────────────
 MAX_DAILY_MOVE   = 0.60   # 일간 60% 초과 변동 = 분할 의심 → 경고
 OVERLAP_CHECK    = 30     # 기존/신규 겹침 비교 일수
 OVERLAP_TOL      = 0.005  # 0.5% 초과 차이 = 출처 불일치 경고
 STALE_DAYS       = 4      # 최신일이 이보다 뒤처지면 STALE 판정
+
+# 발표 지연이 정상인 시리즈 — STALE 판정에서 제외
+#   NFCI     : 주간(수요일) 발표
+#   DEXKOUS  : 주 단위 갱신, 최대 7일 지연
+#   BAMLH0A0HYM2 : 1~2 영업일 지연
+STALE_EXEMPT = ("NFCI", "DEXKOUS", "BAMLH0A0HYM2")
+
+# 축소 경보 — 신규 수집분이 기존 대비 이 비율 미만이면 절단으로 간주
+SHRINK_GUARD = 0.90
