@@ -141,6 +141,136 @@ except Exception as e:
     fail(f"pykrx import: {e!r}")
     traceback.print_exc()
 
+# ─────────────────────────────── 2b. 네이버 금융 (KRX가 해외 IP를 막을 때의 대안)
+import time, io, re
+try:
+    import requests
+    NH = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+          "Referer": "https://finance.naver.com/"}
+    os.makedirs(os.path.join(OUT, "naver"), exist_ok=True)
+    SESSION = requests.Session(); SESSION.headers.update(NH)
+
+    def get(url, **kw):
+        r = SESSION.get(url, timeout=30, **kw); r.raise_for_status(); return r
+
+    def read_tables(html, **kw):
+        return pd.read_html(io.StringIO(html), **kw)
+
+    # 2b-1. 코스피 투자자별 일별 매매동향 (억원) — 개인/외국인/기관계 ...
+    START = pd.Timestamp("2015-01-01")
+    def naver_investor_trend(sosok, label):
+        rows = []
+        bizdate = datetime.date.today().strftime("%Y%m%d")
+        for page in range(1, 400):
+            url = f"https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={bizdate}&sosok={sosok}&page={page}"
+            r = get(url); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="날짜")
+            if not tabs: break
+            t = tabs[0]
+            if isinstance(t.columns, pd.MultiIndex):
+                t.columns = ["_".join([str(c) for c in col if not str(c).startswith("Unnamed")]).strip("_") for col in t.columns]
+            t = t.dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{2}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%y.%m.%d")
+            if last < START: break
+            time.sleep(0.15)
+        if not rows: fail(f"naver investor {label}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df = df[pd.to_datetime(df["date"]) >= START]
+        df.to_csv(os.path.join(OUT, "naver", f"investor_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver investor {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for sosok, label in [("01", "KOSPI"), ("02", "KOSDAQ")]:
+        try: naver_investor_trend(sosok, label)
+        except Exception as e: fail(f"naver investor {label}: {e!r}")
+
+    # 2b-2. 종목별 외국인·기관 순매매 (주수) — 139260, 005930, 000660
+    def naver_frgn(code):
+        rows = []
+        for page in range(1, 300):
+            r = get(f"https://finance.naver.com/item/frgn.naver?code={code}&page={page}"); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="기관")
+            cand = [t for t in tabs if t.shape[1] >= 8]
+            if not cand: break
+            t = cand[-1]
+            if isinstance(t.columns, pd.MultiIndex):
+                t.columns = ["_".join([str(c) for c in col if not str(c).startswith("Unnamed")]).strip("_") for col in t.columns]
+            t = t.dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%Y.%m.%d")
+            if last < START: break
+            time.sleep(0.15)
+        if not rows: fail(f"naver frgn {code}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%Y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df = df[pd.to_datetime(df["date"]) >= START]
+        df.to_csv(os.path.join(OUT, "naver", f"frgn_{code}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver frgn {code}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for code in ["139260", "005930", "000660"]:
+        try: naver_frgn(code)
+        except Exception as e: fail(f"naver frgn {code}: {e!r}")
+
+    # 2b-3. VKOSPI / 코스피200 / 업종지수 — 여러 경로 시도, 되는 것만 저장
+    tries = {
+        "fchart_VKOSPI": "https://fchart.stock.naver.com/sise.nhn?symbol=VKOSPI&timeframe=day&count=4000&requestType=0",
+        "fchart_KPI200": "https://fchart.stock.naver.com/sise.nhn?symbol=KPI200&timeframe=day&count=4000&requestType=0",
+        "fchart_KOSPI":  "https://fchart.stock.naver.com/sise.nhn?symbol=KOSPI&timeframe=day&count=4000&requestType=0",
+        "fchart_139260": "https://fchart.stock.naver.com/sise.nhn?symbol=139260&timeframe=day&count=4000&requestType=0",
+        "mapi_VKOSPI":   "https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=100&page=1",
+        "mapi_KPI200":   "https://m.stock.naver.com/api/index/KPI200/price?pageSize=100&page=1",
+        "sise_VKOSPI":   "https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1",
+        "sise_KPI200":   "https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1",
+    }
+    for k, url in tries.items():
+        try:
+            r = get(url)
+            txt = r.text
+            note(f"naver try {k}: HTTP {r.status_code}, {len(txt)} bytes, head={txt[:120]!r}")
+            if r.ok and len(txt) > 200:
+                open(os.path.join(OUT, "naver", f"try_{k}.txt"), "w", encoding="utf-8").write(txt[:400000])
+        except Exception as e:
+            fail(f"naver try {k}: {e!r}")
+
+    # 2b-4. VKOSPI 일별 페이지 전체 (sise_index_day) — 위 시도가 성공하면 전 기간 수집
+    def naver_index_day(code, label, maxpage=700):
+        rows = []
+        for page in range(1, maxpage):
+            r = get(f"https://finance.naver.com/sise/sise_index_day.naver?code={code}&page={page}"); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="날짜")
+            if not tabs: break
+            t = tabs[0].dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%Y.%m.%d")
+            if last < pd.Timestamp("2010-01-01"): break
+            time.sleep(0.12)
+        if not rows: fail(f"naver index_day {label}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%Y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df.to_csv(os.path.join(OUT, "naver", f"index_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver index_day {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for code, label in [("VKOSPI", "VKOSPI"), ("KPI200", "KOSPI200")]:
+        try: naver_index_day(code, label)
+        except Exception as e: fail(f"naver index_day {label}: {e!r}")
+
+except Exception as e:
+    fail(f"naver block: {e!r}")
+    traceback.print_exc()
+
 # ─────────────────────────────── 3. VKOSPI 직접 시도 (KRX 통계 API)
 try:
     import requests
