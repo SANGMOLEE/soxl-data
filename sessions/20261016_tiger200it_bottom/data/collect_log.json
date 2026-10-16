@@ -11,9 +11,10 @@
   "yahoo VIX (^VIX): 9268행 1990-01-02~2026-10-16",
   "yahoo SOXX (SOXX): 6353행 2001-07-13~2026-10-16",
   "yahoo EWY (EWY): 6647행 2000-05-12~2026-10-16",
-  "naver mapi trend 005930: 7980행 cols=['itemCode', 'bizdate', 'foreignerPureBuyQuant', 'foreignerHoldRatio', 'organPureBuyQuant', 'individualPureBuyQuant', 'closePrice', 'compareToPreviousClosePrice', 'compareToPreviousPrice', 'accumulatedTradingVolume']",
-  "naver mapi trend 000660: 7980행 cols=['itemCode', 'bizdate', 'foreignerPureBuyQuant', 'foreignerHoldRatio', 'organPureBuyQuant', 'individualPureBuyQuant', 'closePrice', 'compareToPreviousClosePrice', 'compareToPreviousPrice', 'accumulatedTradingVolume']",
-  "naver mapi trend 139260: 7980행 cols=['itemCode', 'bizdate', 'foreignerPureBuyQuant', 'foreignerHoldRatio', 'organPureBuyQuant', 'individualPureBuyQuant', 'closePrice', 'compareToPreviousClosePrice', 'compareToPreviousPrice', 'accumulatedTradingVolume']",
+  "naver mapi trend 005930: 2900행 20141218~20261016 (고유 2900)",
+  "naver mapi trend 000660: 2900행 20141218~20261016 (고유 2900)",
+  "naver mapi trend 139260: 2900행 20141218~20261016 (고유 2900)",
+  "naver index trend KOSPI: 2613행 20160104~20261016 cols=['bizdate', 'personalValue', 'foreignValue', 'institutionalValue']",
   "naver mapi price KOSPI200: 4140행 2009-12-17~2026-10-16"
  ],
  "failed": [
@@ -34,11 +35,6 @@
   "krx short_139260: KeyError('거래량')",
   "krx short_005930: KeyError('거래량')",
   "krx pdf_139260: IndexError('index -1 is out of bounds for axis 0 with size 0')",
-  "naver investor KOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=01&page=1')",
-  "naver investor KOSDAQ: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=02&page=1')",
-  "naver frgn 139260: ValueError('No tables found')",
-  "naver frgn 005930: ValueError('No tables found')",
-  "naver frgn 000660: ValueError('No tables found')",
   "naver try mapi_VKOSPI: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=100&page=1')",
   "naver try mapi_KPI200: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/index/KPI200/price?pageSize=100&page=1')",
   "naver try sise_VKOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1')",
@@ -55,10 +51,7 @@
   "naver try api_idx_investor: HTTPError('404 Client Error: Not Found for url: https://api.stock.naver.com/index/KOSPI/investor?pageSize=20&page=1')",
   "naver try mapi_idx_total: HTTPError('404 Client Error: 404 for url: https://m.stock.naver.com/api/index/KOSPI/total')",
   "naver try sise_deal_rank: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=01')",
-  "naver mapi trend KOSPI: 빈 응답",
-  "naver mapi price VKOSPI: HTTPError('409 Client Error: 409 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=20&page=1')",
-  "naver index_day VKOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1')",
-  "naver index_day KOSPI200: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1')"
+  "naver mapi price VKOSPI: HTTPError('409 Client Error: 409 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=20&page=1')"
  ],
  "notes": [
   "krx 지수 목록 0개 저장",
@@ -76,7 +69,20 @@
   "naver try investor_total: HTTP 200, 145464 bytes, head='<!DOCTYPE html><html lang=\"ko\" class=\"\" data-theme=\"light\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"w'",
   "naver try sise_investor_by_date: HTTP 200, 128970 bytes, head='<!DOCTYPE html><html lang=\"ko\" class=\"\" data-theme=\"light\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"w'",
   "naver try mapi_kpi200_price20: HTTP 200, 5078 bytes, head='[{\"localTradedAt\":\"2026-10-16\",\"closePrice\":\"878.16\",\"compareToPreviousClosePrice\":\"17.46\",\"compareToPreviousPrice\":{\"co'",
+  "naver trend scheme 005930 pageSize=20&page=2 -> first=20261016 n=20",
+  "naver trend scheme 005930 pageSize=20&pageNo=2 -> first=20261016 n=20",
+  "naver trend scheme 005930 pageSize=20&offset=20 -> first=20261016 n=20",
+  "naver trend scheme 005930 pageSize=20&bizdate=20260915 -> first=20260914 n=20",
+  "naver trend scheme 000660 pageSize=20&page=2 -> first=20261016 n=20",
+  "naver trend scheme 000660 pageSize=20&pageNo=2 -> first=20261016 n=20",
+  "naver trend scheme 000660 pageSize=20&offset=20 -> first=20261016 n=20",
+  "naver trend scheme 000660 pageSize=20&bizdate=20260915 -> first=20260914 n=20",
+  "naver trend scheme 139260 pageSize=20&page=2 -> first=20261016 n=20",
+  "naver trend scheme 139260 pageSize=20&pageNo=2 -> first=20261016 n=20",
+  "naver trend scheme 139260 pageSize=20&offset=20 -> first=20261016 n=20",
+  "naver trend scheme 139260 pageSize=20&bizdate=20260915 -> first=20260914 n=20",
+  "naver index trend bizdate test -> {'bizdate': '20261015', 'personalValue': '+13,967', 'foreignValue': '-37,637', 'institutionalValue': '+17,176'}",
   "krx raw dbms/MDC/STAT/standard/MDCSTAT01201: HTTP 400, 6 bytes"
  ],
- "run_at_utc": "2026-10-16T20:08:11.332140"
+ "run_at_utc": "2026-10-16T20:17:43.486844"
 }
