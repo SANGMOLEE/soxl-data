@@ -1,0 +1,476 @@
+# NAIL R8 연구 코드 묶음 (2026-09-23) — 독립검토 8.1 대응
+#
+# 이 파일 하나에 연구 스크립트 여러 개가 들어 있다. 아래 "풀기" 코드를 unpack.py로 저장해 실행하면
+# 같은 폴더에 각 파일이 생성된다.
+#
+#   import re
+#   t = open('nail_r8_research_bundle.txt', encoding='utf-8').read()
+#   for name, body in re.findall(r'^##### FILE: (\S+) #####\n(.*?)(?=^##### FILE: |\Z)', t, re.S | re.M):
+#       open(name, 'w', encoding='utf-8').write(body)
+#
+# 준비물: NAIL_R7_3_가격점수차트_2026-09-22.html, 그리고 gh/ 폴더에 GitHub soxl-data의
+#   data/macro/VIXCLS.csv, data/macro/BAMLH0A0HYM2.csv, data/sentiment/fear_greed.csv, data/prices/SPY.csv
+#   (파일명은 VIXCLS.csv, BAMLH0A0HYM2.csv, fear_greed.csv, SPY.csv 로 저장)
+#   v11_tests.py 는 nail_r8_engine.py(v1.0)와 nail_r8_engine_v11.py(v1.1)가 같은 폴더에 필요하다(엔진 .txt 두 개를 .py로 저장).
+#
+# 실행 순서와 재현되는 숫자(2026-09-23 새 폴더에서 처음부터 재실행해 확인)
+#   1) python step0_extract.py NAIL_R7_3_가격점수차트_2026-09-22.html  → nail.pkl (2,788일)
+#   2) python step1_feat.py → nail_feat.pkl ;  python step2_labels.py → nail_feat2.pkl (사후 126일 라벨은 평가 전용)
+#   3) python spearman_timing.py  → 저점 창 상관 평균 N_dd 0.86, A 0.70, B 0.47, R 0.06, D 0.14, TT 0.08
+#        ※ N_dd는 창 안에서 252일 고점이 일정하면 종가의 단조변환이라 정의상 1에 가깝다(검토 8.2). 예측력 증거로 쓰지 말 것.
+#   4) for f in F1 F2 F3 F4 F5; do for s in 0.0 0.2; do python grid2.py $f $s; done; done  → 16,480개(자유 기준)
+#      python grid3.py → 1,296개(고정 간격). 합계 17,776개.
+#        R7.3 합격선 근사 충족 114개(78+36) 전부 깊은 저점 1~2개 누락. 누락 0인 규칙의 근접10 최대 1/5, 예산 MAE 최선 −29.9%.
+#        ※ 이는 '탐색한 규칙군 안에서'의 결과이며 모든 가능한 모델에 대한 증명이 아니다(검토 8.3).
+#   5) python loco.py → 구조까지 선택 시 빠진 사이클 포착률 0.000(누락)/0.384/0.252/0.268/0.549 (중앙 0.27)
+#                       R8 구조 고정·기준만 선택 시 0.299/0.604/0.449/0.548/0.222 (중앙 0.45)
+#        ※ LOCO는 이후 사건으로 모델을 고르므로 시간순 전진 검증이 아니다(검토 8.1).
+#   6) python sens.py / lookback.py / final_checks.py → 민감도·낙폭 기준기간·블록 추가 비교
+#   7) r73approx.py → R7.3 후보 근사. 패닉 t5·NERS(투자금 축소) 미반영이라 위험(예산 MAE) 비교에 쓰면 안 된다(검토 7.2).
+#        R7.3 공식 최악 예산 MAE는 R72_base −39.63%, R73A/B −29.60%.
+#   8) python v11_tests.py → E1·E2·§6 결함 재현(v1.0)과 수정 확인(v1.1)
+#
+# 평가 정의(fast.py): 사건 저점 전 252~후 21거래일 안의 가장 최근 첫 진입 캠페인을 그 사건에 연결.
+#   포착률 = (저점 126일 뒤 예산 가치−1)/(저점 종가 전액매수 가치−1). 예산 MAE = 현금+보유(일중 저가)의 최저.
+#   체결 = 다음 거래일 시가×1.00075. 동일 금액 분할 평균단가 = 조화평균.
+
+##### FILE: step0_extract.py #####
+# R7.3 차트 HTML에서 일별 자료 추출 → nail.pkl  (사용: python step0_extract.py 차트.html)
+import json, re, sys, pandas as pd
+html = open(sys.argv[1], encoding='utf-8').read()
+d = json.loads(re.search(r'const DATA=(\{.*?\});\n', html, re.S).group(1))
+df = pd.DataFrame(d['rows'], columns=['date','close','S','open','high','low','P','T','A','B','R','D'])
+df['date'] = pd.to_datetime(df['date']); df = df.set_index('date')
+assert (df.P - (df.A + df.B + df.R + df.D)).abs().max() == 0
+df.to_pickle('nail.pkl'); print('nail.pkl', df.shape, df.index[0].date(), df.index[-1].date())
+
+##### FILE: step1_feat.py #####
+import pandas as pd, numpy as np
+df = pd.read_pickle('nail.pkl')
+def rd(p, col='value'):
+    x = pd.read_csv(p, parse_dates=['date']).set_index('date')[col]
+    return pd.to_numeric(x, errors='coerce').dropna()
+vix = rd('gh/VIXCLS.csv'); hy = rd('gh/BAMLH0A0HYM2.csv'); fg = rd('gh/fear_greed.csv')
+spy = pd.read_csv('gh/SPY.csv', parse_dates=['date']).set_index('date')['adj_close']
+# align to NAIL trading days (use last available value, as-of)
+idx = df.index
+def asof(s, lag_days=0):
+    s = s.sort_index()
+    out = s.reindex(s.index.union(idx)).ffill().reindex(idx)
+    return out
+df['vix'] = asof(vix); df['hy']=asof(hy); df['fg']=asof(fg); df['spy']=asof(spy)
+c = df.close
+df['dd252'] = c/c.rolling(252, min_periods=60).max()-1
+df['dd756'] = c/c.rolling(756, min_periods=60).max()-1
+df['ma200'] = c/c.rolling(200, min_periods=100).mean()-1
+df['ma50'] = c/c.rolling(50, min_periods=30).mean()-1
+def rsi(s, n=14):
+    d = s.diff(); up = d.clip(lower=0); dn = -d.clip(upper=0)
+    au = up.ewm(alpha=1/n, adjust=False).mean(); ad = dn.ewm(alpha=1/n, adjust=False).mean()
+    return 100 - 100/(1+au/ad)
+df['rsi14'] = rsi(c)
+df['vol20'] = np.log(c).diff().rolling(20).std()*np.sqrt(252)
+df['vix60'] = df.vix.rolling(60, min_periods=20).max()
+df.to_pickle('nail_feat.pkl')
+
+##### FILE: step2_labels.py #####
+# 사후 126일 라벨(평가 전용) + T→TT 명칭 변경 → nail_feat2.pkl
+import pandas as pd, numpy as np
+df = pd.read_pickle('nail_feat.pkl'); c = df.close.values; n = len(c); H = 126
+fmin = np.full(n, np.nan); fmax = np.full(n, np.nan); fret = np.full(n, np.nan)
+for i in range(n - 1):
+    if i + H < n:
+        fmin[i] = c[i+1:i+H+1].min()/c[i]-1; fmax[i] = c[i+1:i+H+1].max()/c[i]-1; fret[i] = c[i+H]/c[i]-1
+df['fmin'] = fmin; df['fmax'] = fmax; df['fret'] = fret; df['good'] = (df.fmin >= -0.20) & (df.fmax >= 0.5)
+df['r10'] = df.close.pct_change(10); df['r20'] = df.close.pct_change(20); df['r63'] = df.close.pct_change(63)
+df = df.rename(columns={'T': 'TT'}); df['PT'] = df.P + df.TT
+df.to_pickle('nail_feat2.pkl'); print('nail_feat2.pkl', df.shape)
+
+##### FILE: fast.py #####
+import pandas as pd, numpy as np, itertools, time, sys
+df = pd.read_pickle('nail_feat2.pkl')
+idx = df.index; pos = {d:i for i,d in enumerate(idx)}
+C = df.close.values; O = df.open.values; L = df.low.values; DD = df.dd252.values; n=len(idx)
+FR=0.00075
+EV7 = [pos[pd.Timestamp(x)] for x in ['2016-02-11','2016-11-02','2018-12-24','2020-03-23','2022-10-20','2023-10-25','2025-04-08']]
+DEEP = [0,2,3,4,6]; CORE=[2,3,4,5,6]
+ST = pos[idx[idx>=pd.Timestamp('2016-01-01')][0]]
+def bands(x, cuts, pts):
+    out = np.zeros(len(x))
+    for c,p in zip(cuts,pts): out = np.where((x<=c)&(p>out), p, out)
+    return out
+def sim(s, ths, step=0.0, reset_dd=-0.30):
+    ntr=len(ths); used=0; last=None; camp=0; F=[]; resets={}
+    for i in range(ST, n-1):
+        if used>0 and DD[i]>reset_dd:
+            resets[camp]=i; used=0; last=None; camp+=1
+        while used<ntr:
+            if s[i] < ths[used]: break
+            if step>0 and last is not None and C[i] > last*(1-step): break
+            px=O[i+1]*(1+FR); F.append((camp,i+1,px)); last=px; used+=1
+            if step>0: break
+    return F, resets, used
+def evaluate(F, resets, ntr=3):
+    # campaigns
+    camps={}
+    for cid,fi,px in F: camps.setdefault(cid,[]).append((fi,px))
+    res=[]; matched=set()
+    for k,ie in enumerate(EV7):
+        best=None
+        for cid,fl in camps.items():
+            i0=fl[0][0]
+            alive = (cid not in resets) or (resets[cid]>ie)
+            if i0<=ie+21 and i0>=ie-252 and alive:
+                if best is None or i0>camps[best][0][0]: best=cid
+        tc=C[ie]; i1=min(n-1,ie+126); perfect=C[i1]/tc
+        if best is None:
+            res.append((k,np.nan,np.nan,0.0,0.0,1.0,perfect,None)); continue
+        matched.add(best); fl=[x for x in camps[best] if x[0]<=ie+21]
+        pxs=np.array([p for _,p in fl]); dep=len(fl)/ntr
+        first=pxs[0]/tc-1; avg=(len(pxs)/np.sum(1/pxs))/tc-1  # equal-dollar tranches -> harmonic mean cost
+        i0=camps[best][0][0]; sh=np.zeros(i1-i0+1); cash=np.ones(i1-i0+1)
+        for fi,px in camps[best]:
+            j=fi-i0
+            if 0<=j<=i1-i0: sh[j:]+= (1/ntr)/px; cash[j:]-=1/ntr
+        val=cash+sh*L[i0:i1+1]; vend=cash[-1]+sh[-1]*C[i1]
+        res.append((k,first,avg,dep,val.min()-1,vend,perfect,camps[best]))
+    un=[]
+    for cid,fl in camps.items():
+        if cid in matched: continue
+        i0=fl[0][0]; j=min(n-1,i0+126); avgpx=len(fl)/np.sum([1/p for _,p in fl])
+        un.append((cid,i0,len(fl),avgpx,C[j]/avgpx-1,L[i0:j+1].min()/fl[0][1]-1,i0+126<n))
+    return res, un
+def summarize(res, un):
+    deep=[res[k] for k in DEEP]
+    miss=sum(1 for r in deep if np.isnan(r[2]))
+    cap=np.array([ (r[5]-1)/(r[6]-1) for r in deep])
+    core=[res[k] for k in CORE]
+    near10=sum(1 for r in core if not np.isnan(r[1]) and r[1]<=0.10)
+    nfalse=sum(1 for u in un if u[6] and u[4]<=-0.30)
+    return dict(miss=miss, cap_med=float(np.median(cap)), cap_min=float(cap.min()), cap=np.round(cap,2).tolist(),
+                avg_med=float(np.nanmedian([r[2] for r in deep])), avg_max=float(np.nanmax([r[2] for r in deep])),
+                first_med=float(np.nanmedian([r[1] for r in deep])),
+                dep=float(np.mean([r[3] for r in deep])), bmae=float(min(r[4] for r in deep)), near10=near10,
+                nfalse=nfalse, nunm=len(un))
+
+##### FILE: grid2.py #####
+exec(open('fast.py').read())
+fam = sys.argv[1]; step=float(sys.argv[2])
+Ndd = bands(DD, [-0.5,-0.6,-0.7,-0.8,-0.9], [8,16,24,32,40])
+A=df.A.values; B=df.B.values; P=df.P.values; T=df.TT.values
+FAM = {'F1':Ndd, 'F2':Ndd+B, 'F3':Ndd+B+A, 'F4':Ndd+P, 'F5':Ndd+P+T}
+s = FAM[fam]; mx=int(s.max())
+grid = list(range(8, mx+1, 2 if mx<=60 else 4))
+out=[]; t0=time.time()
+for ths in itertools.combinations(grid,3):
+    F,rs,used = sim(s, ths, step)
+    res,un = evaluate(F,rs)
+    m = summarize(res,un); m.update(fam=fam, step=step, ths=ths, now_used=used); out.append(m)
+pd.DataFrame(out).to_pickle(f'grid_{fam}_{step}.pkl'); print(fam, step, len(out), round(time.time()-t0,1))
+
+##### FILE: grid3.py #####
+exec(open('fast.py').read())
+import json
+A=df.A.values.astype(float); B=df.B.values.astype(float)
+ma200 = df.ma200.values
+N50 = bands(DD, [-0.5,-0.6,-0.7,-0.8,-0.9], [10,20,30,40,50])
+Nma = bands(ma200, [-0.3,-0.45,-0.6], [5,10,15])
+FAM = {
+ 'N':       N50,
+ 'N+B':     N50+B,
+ 'N+A':     N50+A,
+ 'N+A+B':   N50+A+B,
+ 'N+Nma+B': N50+Nma+B,
+ 'N+A/2+B': N50+A/2+B,
+}
+rows=[]
+for fam,s in FAM.items():
+    for delta in [8,10,12]:
+        for step in [0.0,0.15]:
+            for th in range(10, 81, 2):
+                ths=(th, th+delta, th+2*delta)
+                F,rs,used = sim(s, ths, step); res,un = evaluate(F,rs)
+                m = summarize(res,un); m.update(fam=fam, delta=delta, step=step, th=th, now=float(s[-1]), now_used=used)
+                rows.append(m)
+R = pd.DataFrame(rows); R.to_pickle('grid3.pkl')
+ok = R[(R.miss==0)&(R.nfalse<=1)]
+pd.set_option('display.width',260)
+for (fam,delta,step),g in ok.groupby(['fam','delta','step']):
+    g=g.sort_values('th')
+    # smoothed objective: mean cap_med over th-4..th+4 (within same fam/delta/step, requiring feasibility)
+    allg = R[(R.fam==fam)&(R.delta==delta)&(R.step==step)].set_index('th')
+    capf = allg.cap_med.where((allg.miss==0)&(allg.nfalse<=1))
+    sm = capf.rolling(5, center=True, min_periods=5).mean()
+    best_th = sm.idxmax() if sm.notna().any() else None
+    if best_th is None: continue
+    b = allg.loc[best_th]
+    print(f"{fam:8s} d={delta:2d} step={step:.2f} | robust th={best_th:2d} sm={sm.max():.3f} cap_med={b.cap_med:.3f} cap={b.cap} avg_med={b.avg_med:+.2f} avg_max={b.avg_max:+.2f} dep={b.dep:.2f} bmae={b.bmae:+.2f} near10={b.near10} nfalse={b.nfalse} nunm={b.nunm} now={b.now:.0f}")
+
+##### FILE: loco.py #####
+exec(open('fast.py').read())
+import itertools
+A=df.A.values.astype(float); B=df.B.values.astype(float); ma200=df.ma200.values
+N50 = bands(DD, [-0.5,-0.6,-0.7,-0.8,-0.9], [10,20,30,40,50])
+Nma = bands(ma200, [-0.3,-0.45,-0.6], [5,10,15])
+FAM = {'N':N50,'N+B':N50+B,'N+A':N50+A,'N+A+B':N50+A+B,'N+Nma+B':N50+Nma+B,'N+A/2+B':N50+A/2+B}
+# precompute per-config per-event capture & miss & nfalse
+recs=[]
+for fam,s in FAM.items():
+    for delta in [8,10,12]:
+        for step in [0.0,0.15]:
+            for th in range(10,81,2):
+                F,rs,used = sim(s,(th,th+delta,th+2*delta),step); res,un = evaluate(F,rs)
+                caps=[]; miss=[]
+                for k in DEEP:
+                    r=res[k]; caps.append((r[5]-1)/(r[6]-1)); miss.append(np.isnan(r[2]))
+                nfalse=sum(1 for u in un if u[6] and u[4]<=-0.30)
+                recs.append(dict(fam=fam,delta=delta,step=step,th=th,caps=caps,miss=miss,nfalse=nfalse))
+R=pd.DataFrame(recs)
+out=[]
+for j,k in enumerate(DEEP):
+    others=[i for i in range(5) if i!=j]
+    best=None; bestv=-9
+    for _,r in R.iterrows():
+        if r.nfalse>1 or any(r.miss[i] for i in others): continue
+        v=np.median([r.caps[i] for i in others])
+        if v>bestv: bestv=v; best=r
+    out.append(dict(heldout=['2016-02','2018-12','2020-03','2022-10','2025-04'][j], chosen=f"{best.fam} d={best.delta} s={best.step} th={best.th}",
+                    train_med=round(bestv,3), test_cap=round(best.caps[j],3), test_miss=best.miss[j]))
+print(pd.DataFrame(out).to_string())
+# within-family LOCO for the chosen family N+A+B, delta=10, step=.15 (threshold only)
+g=R[(R.fam=='N+A+B')&(R.delta==10)&(R.step==0.15)]
+out2=[]
+for j,k in enumerate(DEEP):
+    others=[i for i in range(5) if i!=j]; best=None; bestv=-9
+    for _,r in g.iterrows():
+        if r.nfalse>1 or any(r.miss[i] for i in others): continue
+        v=np.median([r.caps[i] for i in others])
+        if v>bestv+1e-12: bestv=v; best=r
+    out2.append(dict(heldout=['2016-02','2018-12','2020-03','2022-10','2025-04'][j], th=best.th, train_med=round(bestv,3), test_cap=round(best.caps[j],3), test_miss=best.miss[j]))
+print(pd.DataFrame(out2).to_string())
+R.to_pickle('loco_R.pkl')
+
+##### FILE: sens.py #####
+exec(open('fast.py').read())
+A=df.A.values.astype(float); B=df.B.values.astype(float); c=df.close
+def simw(s, ths, step, reset_dd=-0.30, dd_reset=None):
+    DDr = DD if dd_reset is None else dd_reset
+    ntr=len(ths); used=0; last=None; camp=0; F=[]; resets={}
+    for i in range(ST, n-1):
+        if used>0 and DDr[i]>reset_dd: resets[camp]=i; used=0; last=None; camp+=1
+        while used<ntr:
+            if s[i] < ths[used]: break
+            if step>0 and last is not None and C[i] > last*(1-step): break
+            px=O[i+1]*(1+FR); F.append((camp,i+1,px,used)); last=px; used+=1
+            if step>0: break
+    return F, resets, used
+def evalw(F, resets, w):
+    camps={}
+    for cid,fi,px,k in F: camps.setdefault(cid,[]).append((fi,px,k))
+    out=[]; matched=set()
+    for kk,ie in enumerate(EV7):
+        best=None
+        for cid,fl in camps.items():
+            i0=fl[0][0]; alive=(cid not in resets) or (resets[cid]>ie)
+            if i0<=ie+21 and i0>=ie-252 and alive:
+                if best is None or i0>camps[best][0][0]: best=cid
+        tc=C[ie]; i1=min(n-1,ie+126); perfect=C[i1]/tc
+        if best is None: out.append((kk,np.nan,np.nan,0,0,1,perfect)); continue
+        matched.add(best); fl=camps[best]
+        i0=fl[0][0]; sh=np.zeros(i1-i0+1); cash=np.ones(i1-i0+1)
+        for fi,px,k in fl:
+            j=fi-i0
+            if 0<=j<=i1-i0: sh[j:]+=w[k]/px; cash[j:]-=w[k]
+        fl2=[x for x in fl if x[0]<=ie+21]
+        dep=sum(w[k] for _,_,k in fl2); cost=dep/sum(w[k]/px for _,px,k in fl2)
+        val=cash+sh*L[i0:i1+1]; vend=cash[-1]+sh[-1]*C[i1]
+        out.append((kk, fl2[0][1]/tc-1, cost/tc-1, dep, val.min()-1, vend, perfect))
+    un=[cid for cid in camps if cid not in matched]
+    deep=[out[k] for k in DEEP]
+    cap=np.array([(r[5]-1)/(r[6]-1) for r in deep])
+    return dict(miss=sum(np.isnan(r[2]) for r in deep), cap_med=np.median(cap), cap=np.round(cap,2).tolist(),
+                avg=np.round([r[2] for r in deep],2).tolist(), dep=np.round([r[3] for r in deep],2).tolist(),
+                bmae=min(r[4] for r in deep), nunm=len(un))
+def Nb(dd, cuts=(-0.5,-0.6,-0.7,-0.8,-0.9), pts=(10,20,30,40,50)): return bands(dd, list(cuts), list(pts))
+base_s = Nb(DD)+A+B
+rows=[]
+def rec(tag, s=base_s, ths=(40,50,60), step=0.15, w=(1/3,1/3,1/3), reset=-0.30):
+    F,rs,used=simw(s,ths,step,reset); m=evalw(F,rs,w); m.update(tag=tag, now=float(s[-1]), used=used); rows.append(m)
+rec('BASE 40/50/60 step15 thirds reset-30')
+for st in [0.0,0.10,0.20,0.25]: rec(f'step {st:.2f}', step=st)
+for rs_ in [-0.20,-0.25,-0.40]: rec(f'reset {rs_}', reset=rs_)
+rec('bands shifted -5% (-55..-95)', s=Nb(DD,(-0.55,-0.65,-0.75,-0.85,-0.95))+A+B)
+rec('bands shifted +5% (-45..-85)', s=Nb(DD,(-0.45,-0.55,-0.65,-0.75,-0.85))+A+B)
+rec('B top VIX band 10 (total 100)', s=Nb(DD)+A+B+np.where(df.vix.rolling(60,min_periods=20).max().values>=45,2,0))
+rec('weights 20/30/50', w=(0.2,0.3,0.5))
+rec('weights 25/25/50', w=(0.25,0.25,0.5))
+rec('ths 38/48/58', ths=(38,48,58)); rec('ths 42/52/62', ths=(42,52,62)); rec('ths 44/54/64', ths=(44,54,64))
+rec('ths 40/48/56', ths=(40,48,56)); rec('ths 40/52/64', ths=(40,52,64))
+R=pd.DataFrame(rows); pd.set_option('display.width',250); pd.set_option('display.max_colwidth',60)
+print(R[['tag','miss','cap_med','cap','avg','dep','bmae','nunm','now','used']].round(3).to_string())
+
+##### FILE: lookback.py #####
+exec(open('fast.py').read())
+A=df.A.values.astype(float); B=df.B.values.astype(float)
+c = df.close
+res_all=[]
+for lb in [252, 378, 504, 756]:
+    dd = (c/c.rolling(lb, min_periods=60).max()-1).values
+    N = bands(dd, [-0.5,-0.6,-0.7,-0.8,-0.9], [10,20,30,40,50])
+    s = N+A+B
+    # NOTE: reset rule still uses dd252 (DD) for comparability
+    for th in range(30,57,2):
+        F,rs,used = sim(s,(th,th+10,th+20),0.15); res,un = evaluate(F,rs); m = summarize(res,un)
+        m.update(lb=lb, th=th, now=float(s[-1]), now_used=used); res_all.append(m)
+R = pd.DataFrame(res_all)
+pd.set_option('display.width',250)
+for lb,g in R.groupby('lb'):
+    print('==== lookback', lb, ' current dd=', round(float((c.iloc[-1]/c.rolling(lb,min_periods=60).max().iloc[-1]-1)),3))
+    print(g.set_index('th')[['miss','cap_med','cap','avg_med','avg_max','dep','bmae','nfalse','nunm','now','now_used']].round(3).to_string())
+
+##### FILE: final_checks.py #####
+exec(open('sens.py').read().split("base_s = ")[0])
+R_=df.R.values.astype(float); D_=df.D.values.astype(float); T_=df.TT.values.astype(float)
+vix60 = df.vix.rolling(60,min_periods=20).max().values
+S20 = B + np.where(vix60>=45,2,0)          # stress block with VIX>=45 -> 10 (total 100)
+N = Nb(DD)
+fams = {'N (가격만)':N, 'N+S':N+S20, 'N+A':N+A, 'R8: N+A+S':N+A+S20, 'R8+R(금리)':N+A+S20+R_, 'R8+T(전환)':N+A+S20+T_,
+        'R8+R+D+T (R7.3 전부)':N+A+S20+R_+D_+T_}
+rows=[]
+for nm,s in fams.items():
+    best=None
+    for th in range(20, 101, 2):
+        F,rs,used=simw(s,(th,th+10,th+20),0.15); m=evalw(F,rs,(1/3,1/3,1/3))
+        if m['miss']==0 and (best is None or m['cap_med']>best[1]['cap_med']+1e-9): best=(th,m,float(s[-1]),used)
+    th,m,now,used=best
+    rows.append(dict(model=nm, best_th=th, cap_med=round(m['cap_med'],3), cap=m['cap'], avg=m['avg'], bmae=round(m['bmae'],3), unmatched=m['nunm'], now=now, used=used))
+pd.set_option('display.width',250); pd.set_option('display.max_colwidth',60)
+print(pd.DataFrame(rows).to_string())
+
+##### FILE: r73approx.py #####
+exec(open('fast.py').read())
+import json
+d = json.load(open('chart_data.json'))
+T = df.TT.values; P = df.P.values
+def r73_campaigns(sig_dates):
+    """Approximate R7.3 campaigns: 1st at given signal date (fill next open); 2nd when T>=10, 3rd when T>=18 (signal->next open),
+    campaign ends when >=126 sessions since first signal AND P<25 for 20 consecutive sessions. Panic t5 requirement NOT modeled."""
+    F=[]; camp=0; resets={}
+    sigs = sorted(pos[pd.Timestamp(s)] for s in sig_dates if pd.Timestamp(s) in pos)
+    for si in sigs:
+        if si < ST: continue
+        F.append((camp, si+1, O[si+1]*(1+FR))); used=1
+        low_run=0; i=si+1
+        while i < n-1:
+            low_run = low_run+1 if P[i]<25 else 0
+            if i-si>=126 and low_run>=20: resets[camp]=i; break
+            if used==1 and T[i]>=10: F.append((camp,i+1,O[i+1]*(1+FR))); used=2
+            elif used==2 and T[i]>=18: F.append((camp,i+1,O[i+1]*(1+FR))); used=3
+            i+=1
+        camp+=1
+    return F, resets
+names=['2016-02','2016-11','2018-12','2020-03','2022-10','2023-10','2025-04']
+for v in ['R72_base','R73A_G1','R73B_G2']:
+    F,rs = r73_campaigns(d['variantSignals'][v]); res,un = evaluate(F,rs)
+    m = summarize(res,un)
+    print('=====', v, {k:m[k] for k in ['miss','cap_med','cap','avg_med','avg_max','dep','bmae']})
+    for r in res:
+        k,first,avg,dep,bm,vend,perf,fl = r
+        if fl is None: print(f'  {names[k]}: MISS'); continue
+        tc=C[EV7[k]]; fs=' '.join(f"{idx[fi].strftime('%y-%m-%d')}({px/tc-1:+.0%})" for fi,px in fl if fi<=EV7[k]+21)
+        print(f'  {names[k]}: first {first:+.0%} avg {avg:+.0%} dep {dep:.2f} bMAE {bm:+.0%} cap {(vend-1)/(perf-1):.2f} | {fs}')
+
+##### FILE: spearman_timing.py #####
+# 저점 창[-126,+21] 안에서 '값이 클수록 저점에 가까운가' Spearman (R8 보고서 R-3의 근거)
+# 주의(독립검토 8.2 수용): N_dd는 창 안에서 252일 고점이 일정하면 종가의 단조변환이라 1.00에 가깝게 '정의상' 나온다.
+#   따라서 N_dd 값은 예측력 증거가 아니며, T·R이 낮다는 것도 '이 측정에서 보이지 않았다'는 뜻에 한정된다.
+import pandas as pd, numpy as np
+from scipy.stats import spearmanr
+df = pd.read_pickle('nail_feat2.pkl'); pos = {d: i for i, d in enumerate(df.index)}
+EVENTS = pd.to_datetime(['2016-02-11','2016-11-02','2018-12-24','2020-03-23','2022-10-20','2023-10-25','2025-04-08'])
+df['N_dd'] = -df.dd252; df['N_ma'] = -df.ma200; df['negfg'] = -df.fg
+feats = ['N_dd','N_ma','A','B','R','D','TT','P','PT','vix','negfg']; rows = []
+for e in EVENTS:
+    ie = pos[e]; w = df.iloc[max(0, ie-126):ie+22].copy(); w['prem'] = w.close/df.close.iloc[ie]-1
+    rows.append({'event': e.date(), **{f: spearmanr(w[f], -w.prem, nan_policy='omit').correlation for f in feats}})
+t = pd.DataFrame(rows).set_index('event'); print(t.round(2).to_string()); print('mean'); print(t.mean().round(2).to_string())
+
+##### FILE: v11_tests.py #####
+# R8 v1.1 제어 검사 — 독립검토 E1·E2·§6 재현(v1.0)과 수정 확인(v1.1). 합성 자료 사용(실제 ITB 이력 불필요)
+# 실행: 같은 폴더에 nail_r8_engine.py(v1.0)와 nail_r8_engine_v11.py(v1.1)를 두고 python v11_tests.py
+import numpy as np, pandas as pd, importlib.util, sys
+def load(name, path):
+    spec=importlib.util.spec_from_file_location(name,path); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+v10=load('v10','nail_r8_engine.py'); v11=load('v11','nail_r8_engine_v11.py')
+def _w(x, n=14):  # v1.0과 같은 계산(첫 14개 평균 후 Wilder 갱신), 쓰기 가능한 배열만 사용
+    d=x.diff(); up=d.clip(lower=0); dn=-d.clip(upper=0)
+    au=up.rolling(n).mean().to_numpy(copy=True); ad=dn.rolling(n).mean().to_numpy(copy=True); u=up.to_numpy(); w=dn.to_numpy()
+    f=np.where(~np.isnan(au))[0]
+    if len(f):
+        for i in range(f[0]+1,len(x)): au[i]=(13*au[i-1]+u[i])/14; ad[i]=(13*ad[i-1]+w[i])/14
+    return pd.Series(100-100/(1+au/ad),index=x.index)
+v10.wilder_rsi=_w
+sessions,_=v11.get_sessions('2006-05-01','2026-09-22')
+rng=np.random.default_rng(7)
+# synthetic ITB: rise to 2014-12 (x2.2), fall 30% into 2016-02, then noisy; SPY steady uptrend
+t=np.arange(len(sessions)); 
+path=np.where(sessions<pd.Timestamp('2014-12-31'), np.linspace(0,np.log(2.2),len(sessions)), np.nan)
+k1=(sessions>=pd.Timestamp('2014-12-31'))&(sessions<pd.Timestamp('2016-02-11')); k2=sessions>=pd.Timestamp('2016-02-11')
+base=np.log(2.2); path[k1]=np.linspace(base,base+np.log(0.70),k1.sum()); path[k2]=base+np.log(0.70)+np.linspace(0,np.log(1.8),k2.sum())
+itb_c=30*np.exp(path+np.cumsum(rng.normal(0,0.012,len(t)))-np.cumsum(rng.normal(0,0.012,len(t)))*0)
+itb=pd.DataFrame({'open':itb_c,'high':itb_c*1.01,'low':itb_c*0.99,'close':itb_c},index=sessions)
+spy_c=100*np.exp(np.linspace(0,np.log(6),len(t))+np.cumsum(rng.normal(0,0.008,len(t))))
+spy=pd.DataFrame({'open':spy_c,'high':spy_c,'low':spy_c,'close':spy_c},index=sessions)
+nail_days=sessions[sessions>=pd.Timestamp('2015-08-19')]
+# ---- E1
+A10,p10=v10.block_A(itb,spy,nail_days)
+A11,p11=v11.block_A_raw(itb,spy,nail_days,sessions)
+w=(nail_days<=pd.Timestamp('2016-08-31'))
+print('E1  (합성 자료) 2015-08-19~2016-08-31 NAIL 거래일', int(w.sum()),'일')
+print('    v1.0 A1 결측→0 처리 일수:', int((p10['A1_dd756'][w].isna()).sum()), '| v1.0 A2 결측→0 처리 일수:', int((p10['A2_rs504'][w].isna()).sum()))
+print('    v1.1 A1·A2 결측 일수:', int(p11['A1_dd756'][w].isna().sum()), int(p11['A2_rs504'][w].isna().sum()))
+print('    A 불일치 일수 v1.0 vs v1.1:', int((A10[w].values!=A11[w].values).sum()))
+d=pd.Timestamp('2016-02-11'); print('    2016-02-11  v1.0 A =', A10[d], ' v1.1 A =', A11[d], '| v1.1 구성', p11.loc[d,['A1','A2','A3','A4']].to_dict(), ' ITB 756일 낙폭 %.1f%%'%(100*p11.loc[d,'A1_dd756']))
+# ---- E2 : cut data on a Wednesday, compare that Wednesday's value with the value computed later from full data
+for wed in ['2026-09-16','2026-05-13']:
+    wd=pd.Timestamp(wed); cut=itb[itb.index<=wd]; cut_s=spy[spy.index<=wd]
+    nd=nail_days[nail_days<=wd]
+    a10_rt,pr10=v10.block_A(cut,cut_s,nd); a10_full,pf10=v10.block_A(itb,spy,nail_days)
+    a11_rt,pr11=v11.block_A_raw(cut,cut_s,nd,sessions); a11_full,pf11=v11.block_A_raw(itb,spy,nail_days,sessions)
+    print(f'E2  {wed}(수)  v1.0 주봉RSI 실시간 {pr10.loc[wd,"A3_rsiW"]:.2f} / 사후 {pf10.loc[wd,"A3_rsiW"]:.2f}  → 일치={abs(pr10.loc[wd,"A3_rsiW"]-pf10.loc[wd,"A3_rsiW"])<1e-9}'
+          f' | v1.1 실시간 {pr11.loc[wd,"A3_rsiW"]:.2f} / 사후 {pf11.loc[wd,"A3_rsiW"]:.2f} → 일치={abs(pr11.loc[wd,"A3_rsiW"]-pf11.loc[wd,"A3_rsiW"])<1e-9}')
+# Good Friday week: completed on Thursday 2020-04-09
+wk=v11.completed_weeks(itb['close'],sessions); print('E2  성금요일 주 완결 효력일:', [x.date().isoformat() for x in wk.index if pd.Timestamp('2020-04-06')<=x<=pd.Timestamp('2020-04-17')])
+
+# ---- 실시간 = 사후 일치 전수 검사 (v1.1, 최근 126거래일 모든 날을 그날까지 잘라 계산)
+full_A, full_p = v11.block_A_raw(itb, spy, nail_days, sessions)
+bad = 0; checked = 0
+for wd in nail_days[-126:]:
+    cut = itb[itb.index <= wd]; cut_s = spy[spy.index <= wd]; nd = nail_days[nail_days <= wd]
+    a_rt, p_rt = v11.block_A_raw(cut, cut_s, nd, sessions)
+    checked += 1
+    same = all(np.isclose(p_rt.loc[wd, c], full_p.loc[wd, c], equal_nan=True) for c in ['A1_dd756','A2_rs504','A3_rsiW','A4_ma200w']) and a_rt[wd] == full_A[wd]
+    bad += (not same)
+print(f'실시간/사후 일치 검사(v1.1): {checked}일 중 불일치 {bad}일')
+bad10 = 0
+f10A, f10p = v10.block_A(itb, spy, nail_days)
+for wd in nail_days[-126:]:
+    cut = itb[itb.index <= wd]; cut_s = spy[spy.index <= wd]; nd = nail_days[nail_days <= wd]
+    a_rt, p_rt = v10.block_A(cut, cut_s, nd)
+    bad10 += (a_rt[wd] != f10A[wd]) or not np.isclose(p_rt.loc[wd,'A3_rsiW'], f10p.loc[wd,'A3_rsiW'], equal_nan=True)
+print(f'실시간/사후 일치 검사(v1.0 논리): 126일 중 불일치 {bad10}일')
+
+# ---- §6 입력·체결 통제
+import tempfile
+idx6 = pd.bdate_range('2026-01-05', periods=8)
+base = dict(open=[10,10,np.nan,9,9,9,9,9], close=[10,10,9.5,9,9,9,9,9], dd252=[-0.7]*8)
+df = pd.DataFrame(base, index=idx6); df['cond'] = [0,45,0,0,0,0,0,0]; df['score'] = df['cond']
+f10,_,u10,_,_ = v10.run_campaigns(df); f11,ev,u11,_,_ = v11.run_campaigns(df)
+print('(1) 체결일 시가 결측: v1.0', [(x['fill'], x['fill_px']) for x in f10], '차수', u10, '| v1.1', [(x['fill'], x['fill_px']) for x in f11], '차수', u11, ev)
+df = pd.DataFrame(base, index=idx6); df['open'] = [10,10,9.8,9.6,9.4,9,9,9]; df['cond'] = [0,45,np.nan,0,0,0,0,0]; df['score'] = df['cond']
+f10,_,_,_,_ = v10.run_campaigns(df.dropna(subset=['score'])); f11,_,_,_,_ = v11.run_campaigns(df)
+print('(2) 신호 다음 거래일 점수 결측: v1.0 체결', [(x['signal'], x['fill']) for x in f10], '| v1.1 체결', [(x['signal'], x['fill']) for x in f11])
+tmp = tempfile.NamedTemporaryFile('w', suffix='.csv', delete=False)
+tmp.write('date,price,shares,order_id\n2026-03-23,38.00,10,A1\n2026-03-23,38.10,5,A1\n2026-03-23,38.20,5,A1\n2026-09-30,25.00,10,B1\n2026-05-01,-3,10,X\n'); tmp.close()
+probs = []; o = v11.load_my_fills(tmp.name, pd.Timestamp('2026-09-22'), probs)
+print('(3)(4)(5) 실제 체결(부분체결 3행·미래 1행·음수 1행): 주문', len(o), '건', o.to_dict('records'), probs)

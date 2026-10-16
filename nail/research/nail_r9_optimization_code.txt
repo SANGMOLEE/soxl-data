@@ -1,0 +1,150 @@
+# NAIL R9 최저점 매수 최적화 코드 묶음 (2026-09-23)
+# 풀기: 아래 파이썬을 unpack.py로 저장해 실행
+#   import re; t=open('nail_r9_optimization_code.txt',encoding='utf-8').read()
+#   [open(n,'w',encoding='utf-8').write(b) for n,b in re.findall(r'^##### FILE: (\S+) #####\n(.*?)(?=^##### FILE: |\Z)', t, re.S|re.M)]
+# 준비물: 연구 코드 묶음(nail_r8_research_bundle.txt)으로 만든 nail_feat2.pkl, bundle/nail.pkl,
+#         v1.1 차트 모드 결과 r8/v11_chart/r8_daily.csv, gh/NFCI.csv(soxl-data data/macro/NFCI.csv), AAII xls(프로젝트 파일, xlrd 필요)
+# 순서: python opt_grid.py (분할 구조 25,920개) → python opt_factors.py (추가 요소 11종 × 1,008개, 요소별·요소선택 LOCO)
+# 평가: 사이클(저점 7개)마다 예산 1. 저점 후 21거래일까지 못 채운 몫은 그날 종가에 산 것으로 강제 완료 → 저점 종가 대비 평균 매수 위치.
+
+##### FILE: optlib.py #####
+# 최저점 매수 최적화용 공통 모듈: 자료, 시뮬레이터, '사이클 최저점 대비 평균 매수 위치' 평가
+import pandas as pd, numpy as np
+f = pd.read_pickle('nail_feat2.pkl')
+v11 = pd.read_csv('r8/v11_chart/r8_daily.csv', parse_dates=['date']).set_index('date')
+df = f[['open','high','low','close','A','ma50','vol20','dd252']].copy()
+df['S'] = v11['S'].reindex(df.index).fillna(0)
+C = df.close.values; O = df.open.values; L = df.low.values; idx = df.index; n = len(df)
+DD = (df.close / df.close.rolling(252, min_periods=60).max() - 1).values
+def bands(x, cuts=(-0.5,-0.6,-0.7,-0.8,-0.9), pts=(10,20,30,40,50)):
+    x = np.asarray(x, float); out = np.zeros(len(x))
+    for c, p in zip(cuts, pts): out = np.where((x <= c) & (p > out), p, out)
+    return out
+N = bands(DD); A = df.A.values.astype(float); S = df.S.values.astype(float)
+COND = N + A + S                                   # R8 조건점수 (표시점수 = 100 - COND)
+ROC10 = df.close.pct_change(10).values; ROC20 = df.close.pct_change(20).values
+TR = pd.to_datetime(['2016-02-11','2016-11-02','2018-12-24','2020-03-23','2022-10-20','2023-10-25','2025-04-08'])
+TI = np.array([idx.get_loc(t) for t in TR]); DEEP = [0,2,3,4,6]; H = 21
+ST = int(np.searchsorted(idx, pd.Timestamp('2016-01-01')))
+def sim(cond, th=(42,52,62), step=0.15, w=(1/3,1/3,1/3), gap=0, knife=None, confirm=False, reset=-0.30):
+    used = 0; last = None; lastf = -999; camp = 0; F = []; pend = False; resets = []
+    for i in range(ST, n):
+        if pend:
+            if np.isfinite(O[i]):
+                px = O[i] * 1.00075; F.append((camp, i, px, used, w[used])); last = px; used += 1; lastf = i
+            pend = False
+        if used > 0 and DD[i] > reset: resets.append((camp, i)); used = 0; last = None; camp += 1
+        if used < 3 and i + 1 < n and cond[i] >= th[used]:
+            ok = used == 0 or C[i] <= last * (1 - step)
+            if ok and gap and used > 0 and i - lastf < gap: ok = False
+            if ok and knife is not None and knife[i]: ok = False
+            if ok and confirm and used == 2 and not (C[i] > C[i-5:i].max()): ok = False
+            if ok: pend = True
+    return F, dict(resets)
+def evaluate(F, resets, h=H):
+    """사이클별 평균 매수 위치(저점 종가 대비). 저점+h 거래일까지 못 채운 몫은 그날 종가에 산 것으로 강제 완료."""
+    per = []; cur = []
+    groups = {k: [] for k in range(len(TI))}
+    for (camp, i, px, tr, w) in F:
+        k = next((k for k in range(len(TI)) if i <= TI[k] + h), None)
+        if k is None: cur.append((camp, i, px, tr, w)); continue
+        groups[k].append((camp, i, px, tr, w))
+    for k in range(len(TI)):
+        g = groups[k]; te = TI[k] + h; low = C[TI[k]]
+        W = [x[4] for x in g]; P = [x[2] for x in g]; actual_w = sum(W)
+        forced = 0.0
+        if not g: forced = 1.0
+        else:
+            lc = g[-1][0]; rs = resets.get(lc)
+            if rs is None or rs > te:
+                forced = 1.0 - sum(x[4] for x in F if x[0] == lc)
+        if forced > 1e-9: W = W + [forced]; P = P + [C[te]]
+        avg = sum(W) / sum(wi / pi for wi, pi in zip(W, P))
+        act = (sum(x[4] for x in g) / sum(x[4] / x[2] for x in g)) if g else np.nan
+        per.append(dict(k=k, prem=avg / low - 1, act_prem=(act / low - 1) if g else np.nan, actual_w=actual_w, forced=forced,
+                        near30=any(x[2] <= low * 1.3 for x in g if x[1] >= TI[k] - 126)))
+    return per, cur
+def summary(per):
+    p = np.array([x['prem'] for x in per]); d = p[DEEP]
+    return dict(J7=p.mean(), J5=d.mean(), med7=np.median(p), near30=sum(x['near30'] for x in per), prem=p)
+
+##### FILE: opt_grid.py #####
+exec(open('optlib.py').read())
+import itertools, pickle, time, sys
+knifes = {'없음': None, 'ROC10≤-30%': np.nan_to_num(ROC10, nan=0) <= -0.30, 'ROC10≤-40%': np.nan_to_num(ROC10, nan=0) <= -0.40}
+W = {'1/3씩': (1/3,1/3,1/3), '20/30/50': (0.2,0.3,0.5), '10/30/60': (0.1,0.3,0.6)}
+rows = []; t0 = time.time()
+for th1, dl, step, wn, gap, kn, cf in itertools.product(range(30, 61, 2), (6, 8, 10, 12, 15), (0.10, 0.15, 0.20, 0.25, 0.30, 0.40),
+                                                        W, (0, 5, 10), knifes, (False, True)):
+    th = (th1, th1 + dl, th1 + 2 * dl)
+    if th[2] > 100: continue
+    F, rs = sim(COND, th, step, W[wn], gap, knifes[kn], cf)
+    per, cur = evaluate(F, rs); s = summary(per)
+    rows.append(dict(th1=th1, dl=dl, step=step, w=wn, gap=gap, knife=kn, confirm=cf, J7=s['J7'], J5=s['J5'], med7=s['med7'],
+                     near30=s['near30'], prem=s['prem'], ncur=len(cur)))
+R = pd.DataFrame(rows); R.to_pickle('opt_grid.pkl')
+print('configs', len(R), 'sec', round(time.time() - t0))
+
+##### FILE: opt_factors.py #####
+exec(open('optlib.py').read())
+import itertools, time
+feat = pd.read_pickle('nail_feat2.pkl'); base = pd.read_pickle('bundle/nail.pkl')
+def pts(x, cuts, p, ge=False):
+    x = np.asarray(x, float); out = np.zeros(len(x))
+    for c, q in zip(cuts, p): out = np.where(((x >= c) if ge else (x <= c)) & (q > out), q, out)
+    return np.nan_to_num(out)
+# 주간 자료: 발표 지연 고려해 5거래일 뒤부터 사용
+def weekly_asof(s, lag=5):
+    s = s.dropna().sort_index(); out = []
+    for k in range(n):
+        if k - lag < 0: out.append(np.nan); continue
+        j = s.index.searchsorted(idx[k - lag], side='right') - 1; out.append(s.iloc[j] if j >= 0 else np.nan)
+    return np.array(out)
+nf = pd.read_csv('gh/NFCI.csv', parse_dates=['date']).set_index('date')['value'].astype(float)
+NFCI = weekly_asof(nf, 5)
+a = pd.read_excel('/mnt/project/AAII_투자자_심리_sentiment.xls', header=None)
+a = a[pd.to_datetime(a[0], errors='coerce').notna()].copy(); a[0] = pd.to_datetime(a[0])
+aa = pd.Series(pd.to_numeric(a[6], errors='coerce').values, index=a[0]).dropna()
+print('AAII range', aa.index[0].date(), aa.index[-1].date(), '| NFCI last', nf.index[-1].date())
+AAII = weekly_asof(aa, 1)
+FAM = {
+ '없음(R8)': np.zeros(n),
+ 'R 금리압력': np.nan_to_num(base.R.values.astype(float)),
+ 'T 전환×0.5': np.nan_to_num(base['T'].values.astype(float)) * 0.5,
+ 'D 주택수요': np.nan_to_num(base.D.values.astype(float)),
+ '공포탐욕 극단': pts(feat.fg.values, (25, 15), (5, 10)),
+ 'NFCI 금융긴축': pts(NFCI, (-0.25, 0.0), (5, 10), ge=True),
+ '50일선 이격': pts(feat.ma50.values, (-0.25, -0.35), (5, 10)),
+ '20일 변동성': pts(feat.vol20.values, (0.8, 1.2), (5, 10), ge=True),
+ 'AAII 비관': pts(AAII, (-20, -30), (5, 10)),
+ 'RSI 과매도': pts(feat.rsi14.values, (30, 20), (5, 10)),
+ '200일선 이격': pts(feat.ma200.values, (-0.5, -0.6), (5, 10)),
+}
+Wt = {'1/3씩': (1/3,1/3,1/3), '20/30/50': (0.2,0.3,0.5), '10/30/60': (0.1,0.3,0.6)}
+rows = []; t0 = time.time()
+for fam, add in FAM.items():
+    cond = COND + add
+    for th1, dl, step, wn, gap in itertools.product(range(30, 71, 2), (8, 10, 12, 15), (0.10, 0.15), Wt, (0, 5)):
+        th = (th1, th1 + dl, th1 + 2 * dl)
+        F, rs = sim(cond, th, step, Wt[wn], gap)
+        per, cur = evaluate(F, rs); s = summary(per)
+        rows.append(dict(fam=fam, th1=th1, dl=dl, step=step, w=wn, gap=gap, J7=s['J7'], J5=s['J5'], med7=s['med7'], near30=s['near30'], prem=s['prem'],
+                         cur=[(idx[i].date().isoformat(), round(px, 2), round(w, 2)) for (c, i, px, t, w) in cur]))
+R = pd.DataFrame(rows); R.to_pickle('opt_factors.pkl'); print('configs', len(R), 'sec', round(time.time() - t0))
+P = np.vstack(R.prem.values)
+out = []
+for fam in FAM:
+    m = R.fam == fam; sub = R[m]; Ps = P[m.values]
+    b = sub.J7.idxmin(); r = R.loc[b]
+    held = []
+    for k in range(7):
+        mm = np.delete(Ps, k, axis=1).mean(axis=1); j = int(np.argmin(mm)); held.append(Ps[j, k])
+    out.append(dict(fam=fam, best_J7=round(r.J7, 3), J5=round(r.J5, 3), med7=round(r.med7, 3), near30=r.near30, LOCO=round(np.mean(held), 3),
+                    cfg=f"th1={r.th1} dl={r.dl} step={r.step} w={r.w} gap={r.gap}", prem=np.round(100 * r.prem).astype(int).tolist()))
+pd.set_option('display.width', 250); pd.set_option('display.max_colwidth', 80)
+print(pd.DataFrame(out).sort_values('LOCO').to_string(index=False))
+# 요소까지 고르는 LOCO
+held = []
+for k in range(7):
+    mm = np.delete(P, k, axis=1).mean(axis=1); j = int(np.argmin(mm)); held.append((R.iloc[j].fam, P[j, k]))
+print('요소 선택 포함 LOCO:', [(f, round(v, 3)) for f, v in held], '평균', round(np.mean([v for _, v in held]), 3))

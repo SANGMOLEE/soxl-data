@@ -16,6 +16,9 @@ PRICES = {
     "MU":   {"yahoo": "MU",    "stooq": "mu.us",   "role": "보조", "note": "메모리 사이클 대표"},
     "SPY":  {"yahoo": "SPY",   "stooq": "spy.us",  "role": "기준", "note": "거래일 달력 기준"},
     "QQQ":  {"yahoo": "QQQ",   "stooq": "qqq.us",  "role": "참고", "note": "상대강도 비교"},
+    # ── NAIL 연구 (2026-10-16 추가, nail/ 폴더 참조) ──
+    "NAIL": {"yahoo": "NAIL",  "stooq": "nail.us", "role": "NAIL", "note": "3x 주택건설. NAIL R9 N블록"},
+    "ITB":  {"yahoo": "ITB",   "stooq": "itb.us",  "role": "NAIL", "note": "주택건설 1x(NAIL과 같은 지수). NAIL R9 A블록"},
 }
 
 # ── FRED 거시지표 (API키 불필요) ─────────────────────────────
@@ -25,6 +28,10 @@ FRED = {
     "BAMLH0A0HYM2": {"role": "감시", "note": "하이일드 스프레드. 3.41% 돌파 감시"},
     "T10Y2Y":       {"role": "참고", "note": "장단기 금리차. 미편입"},
     "DEXKOUS":      {"role": "참고", "note": "원달러. 미편입"},
+    # ── NAIL 연구 (2026-10-16 추가) ──
+    "DGS10":        {"role": "NAIL", "note": "10년 국채. 금리 정점 감시"},
+    "DGS2":         {"role": "NAIL", "note": "2년 국채"},
+    "MORTGAGE30US": {"role": "NAIL", "note": "프레디맥 30년 모기지(주간, 목요일)"},
 }
 
 # ── 심리지표 ────────────────────────────────────────────────
@@ -45,7 +52,8 @@ STALE_DAYS       = 4      # 최신일이 이보다 뒤처지면 STALE 판정
 #   NFCI     : 주간(수요일) 발표
 #   DEXKOUS  : 주 단위 갱신, 최대 7일 지연
 #   BAMLH0A0HYM2 : 1~2 영업일 지연
-STALE_EXEMPT = ("NFCI", "DEXKOUS", "BAMLH0A0HYM2")
+#   MORTGAGE30US : 주간(목요일) 발표
+STALE_EXEMPT = ("NFCI", "DEXKOUS", "BAMLH0A0HYM2", "MORTGAGE30US")
 
 # 축소 경보 — 신규 수집분이 기존 대비 이 비율 미만이면 절단으로 간주
 SHRINK_GUARD = 0.90

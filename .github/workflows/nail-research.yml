@@ -1,0 +1,58 @@
+name: nail-research
+
+# NAIL 연구 자료 수집 + R9 엔진 판정
+# - push: claude/** 또는 main 브랜치에서 nail/ 아래가 바뀌면 그 브랜치에서 실행하고 결과를 같은 브랜치에 커밋
+# - schedule: 기본 브랜치(main)에 이 파일이 있을 때만 작동. 22:50 UTC = 미국 마감 후(공용 수집기 22:30 뒤)
+# - workflow_dispatch: Actions 화면의 Run workflow 버튼
+on:
+  push:
+    branches: ['claude/**', 'main']
+    paths: ['nail/scripts/**', 'nail/engine/**', 'nail/RUN_TRIGGER', '.github/workflows/nail-research.yml']
+  schedule:
+    - cron: '50 22 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nail-research-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성
+        run: pip install "pandas>=2.0" numpy "yfinance>=0.2.40" requests lxml exchange_calendars
+      - name: 자료 수집
+        run: python nail/scripts/fetch_nail_data.py
+      - name: R9 엔진 판정
+        continue-on-error: true
+        run: python nail/scripts/run_daily.py
+      - name: 커밋
+        run: |
+          git config user.name  "nail-research-bot"
+          git config user.email "nail-research-bot@users.noreply.github.com"
+          BR="${GITHUB_REF_NAME}"
+          git add -A nail
+          for f in data/prices/NAIL.csv data/prices/ITB.csv data/macro/DGS10.csv data/macro/DGS2.csv data/macro/MORTGAGE30US.csv; do
+            if [ -f "$f" ] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then git add "$f"; fi
+          done
+          if git diff --staged --quiet; then echo "변경 없음"; exit 0; fi
+          LD=$(python -c "import json;print(json.load(open('nail/output/engine/r8_status.json'))['date'])" 2>/dev/null || echo "엔진실패")
+          SC=$(python -c "import json;print(json.load(open('nail/output/engine/r8_status.json'))['display_score'])" 2>/dev/null || echo "-")
+          git commit -m "nail-data: ${LD} 표시점수 ${SC}"
+          for i in 1 2 3; do
+            if git push origin "HEAD:${BR}"; then echo "push 성공"; exit 0; fi
+            git pull --rebase -X theirs origin "${BR}" || { git rebase --abort; git fetch origin "${BR}"; git reset --soft "origin/${BR}"; git commit -m "nail-data: ${LD} (재시도)"; }
+            sleep 3
+          done
+          echo "::error::push 실패"; exit 1
