@@ -1,0 +1,39 @@
+{
+ "ok": [
+  "yahoo TIGER200IT (139260.KS): 3785행 2011-04-06~2026-10-16",
+  "yahoo KOSPI (^KS11): 7344행 1996-12-11~2026-10-15",
+  "yahoo KOSDAQ (^KQ11): 6405행 2000-10-16~2026-10-15",
+  "yahoo SAMSUNG (005930.KS): 6694행 2000-01-04~2026-10-16",
+  "yahoo HYNIX (000660.KS): 6694행 2000-01-04~2026-10-16",
+  "yahoo KODEX_SEMI (091160.KS): 4282행 2007-01-29~2026-10-16",
+  "yahoo USDKRW (KRW=X): 5934행 2003-12-01~2026-10-16",
+  "yahoo SOX (^SOX): 8169행 1994-05-04~2026-10-16",
+  "yahoo VIX (^VIX): 9268행 1990-01-02~2026-10-16",
+  "yahoo SOXX (SOXX): 6353행 2001-07-13~2026-10-16",
+  "yahoo EWY (EWY): 6647행 2000-05-12~2026-10-16"
+ ],
+ "failed": [
+  "yahoo KOSPI200 (^KS200): 빈 응답",
+  "krx etf_139260: 빈 응답",
+  "krx flow_139260: 빈 응답",
+  "krx flowvol_139260: 빈 응답",
+  "krx flow_KOSPI: 빈 응답",
+  "krx flowvol_KOSPI: 빈 응답",
+  "krx flow_005930: 빈 응답",
+  "krx flowvol_005930: 빈 응답",
+  "krx flow_000660: 빈 응답",
+  "krx flowvol_000660: 빈 응답",
+  "krx index list KOSPI: KeyError('시장')",
+  "krx index list KOSDAQ: KeyError('시장')",
+  "krx index list KRX: KeyError('시장')",
+  "krx index list 테마: KeyError('시장')",
+  "krx short_139260: KeyError('거래량')",
+  "krx short_005930: KeyError('거래량')",
+  "krx pdf_139260: IndexError('index -1 is out of bounds for axis 0 with size 0')"
+ ],
+ "notes": [
+  "krx 지수 목록 0개 저장",
+  "krx raw dbms/MDC/STAT/standard/MDCSTAT01201: HTTP 400, 6 bytes"
+ ],
+ "run_at_utc": "2026-10-16T19:59:54.710571"
+}
