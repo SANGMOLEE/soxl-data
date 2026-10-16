@@ -144,8 +144,19 @@ def compute(session_dir, repo_dir):
         common = etf.index.intersection(nv.index)[-30:]
         diff = (etf.loc[common, "close"] / nv.loc[common, "close"] - 1).abs().max()
         if diff > 0.005: warn.append(f"TIGER200IT: Yahoo·네이버 최근 30일 종가 차이 최대 {diff:.2%}")
-        extra = nv.index.difference(etf.index)
-        if len(extra): etf = pd.concat([etf, nv.loc[extra].assign(adj_close=np.nan, source="naver")]).sort_index()
+        # Yahoo 결측 거래일은 네이버로 메운다. 네이버 차트는 분배락 조정가(과거가 낮음)이므로
+        # 직전 겹치는 날의 Yahoo/네이버 비율을 곱해 Yahoo 가격 기준으로 맞춘다.
+        extra = nv.index.difference(etf.index); extra = extra[extra >= etf.index[0]]
+        if len(extra):
+            ratio = (etf["close"] / nv["close"]).dropna()
+            fills = []
+            for d in extra:
+                r = ratio[ratio.index < d]
+                k = r.iloc[-1] if len(r) else 1.0
+                row = nv.loc[d, ["open", "high", "low", "close"]] * k
+                fills.append(pd.DataFrame({**row.to_dict(), "adj_close": np.nan, "volume": nv.loc[d, "volume"], "source": "naver_scaled"}, index=[d]))
+            etf = pd.concat([etf] + fills).sort_index()
+            warn.append(f"TIGER200IT: Yahoo 결측 거래일 {len(extra)}건을 네이버 가격(비율 보정)으로 보완")
     etf = etf[etf["close"].notna()]
     # 거래량 0인 날(유령행) 제거: 종가가 전일과 같고 거래량 0
     ghost = (etf["volume"] == 0) & (etf["close"] == etf["close"].shift())
