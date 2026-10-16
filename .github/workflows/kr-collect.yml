@@ -1,7 +1,10 @@
 name: kr-collect
 
 on:
-  workflow_dispatch:        # 수동 실행 전용 (TIGER 200 IT 단기저점 연구용)
+  workflow_dispatch:        # 수동 실행 (TIGER 200 IT 단기저점 연구용)
+  push:
+    branches: ['ccr-16814a64-bid0sc', 'claude/**']
+    paths: ['sessions/20261016_tiger200it_bottom/collect_kr.py', 'sessions/20261016_tiger200it_bottom/RUN_TRIGGER', '.github/workflows/kr-collect.yml']
 
 permissions:
   contents: write
