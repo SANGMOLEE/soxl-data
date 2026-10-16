@@ -1,0 +1,666 @@
+# NAIL 연구 코드 묶음 (2026-10-16) — 수집·판정·인수 검사·최저점 환경 연구
+# 풀기: import re; t=open('nail_code_bundle_2026-10-16.txt',encoding='utf-8').read()
+#       [open(n.split('/')[-1],'w',encoding='utf-8').write(b) for n,b in re.findall(r'^##### FILE: (\S+) #####\n(.*?)(?=^##### FILE: |\Z)', t, re.S|re.M)]
+# 원본 위치는 GitHub SANGMOLEE/soxl-data 저장소 경로(아래 FILE 이름). 엔진 v1.2는 인계 문서 Part D-2와 같아 넣지 않음.
+
+##### FILE: .github/workflows/nail-research.yml #####
+name: nail-research
+
+# NAIL 연구 자료 수집 + R9 엔진 판정
+# - push: claude/** 또는 main 브랜치에서 nail/ 아래가 바뀌면 그 브랜치에서 실행하고 결과를 같은 브랜치에 커밋
+# - schedule: 기본 브랜치(main)에 이 파일이 있을 때만 작동. 22:50 UTC = 미국 마감 후(공용 수집기 22:30 뒤)
+# - workflow_dispatch: Actions 화면의 Run workflow 버튼
+on:
+  push:
+    branches: ['claude/**', 'main']
+    paths: ['nail/scripts/**', 'nail/engine/**', 'nail/RUN_TRIGGER', '.github/workflows/nail-research.yml']
+  schedule:
+    - cron: '50 22 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nail-research-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 의존성
+        run: pip install "pandas>=2.0" numpy "yfinance>=0.2.40" requests lxml exchange_calendars
+      - name: 자료 수집
+        run: python nail/scripts/fetch_nail_data.py
+      - name: R9 엔진 판정
+        continue-on-error: true
+        run: python nail/scripts/run_daily.py
+      - name: 커밋
+        run: |
+          git config user.name  "nail-research-bot"
+          git config user.email "nail-research-bot@users.noreply.github.com"
+          BR="${GITHUB_REF_NAME}"
+          git add -A nail
+          for f in data/prices/NAIL.csv data/prices/ITB.csv data/macro/DGS10.csv data/macro/DGS2.csv data/macro/MORTGAGE30US.csv; do
+            if [ -f "$f" ] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then git add "$f"; fi
+          done
+          if git diff --staged --quiet; then echo "변경 없음"; exit 0; fi
+          LD=$(python -c "import json;print(json.load(open('nail/output/engine/r8_status.json'))['date'])" 2>/dev/null || echo "엔진실패")
+          SC=$(python -c "import json;print(json.load(open('nail/output/engine/r8_status.json'))['display_score'])" 2>/dev/null || echo "-")
+          git commit -m "nail-data: ${LD} 표시점수 ${SC}"
+          for i in 1 2 3; do
+            if git push origin "HEAD:${BR}"; then echo "push 성공"; exit 0; fi
+            git pull --rebase -X theirs origin "${BR}" || { git rebase --abort; git fetch origin "${BR}"; git reset --soft "origin/${BR}"; git commit -m "nail-data: ${LD} (재시도)"; }
+            sleep 3
+          done
+          echo "::error::push 실패"; exit 1
+
+##### FILE: nail/scripts/fetch_nail_data.py #####
+# -*- coding: utf-8 -*-
+"""
+NAIL 연구용 원자료 수집기 (GitHub Actions에서 실행 — 작업 컨테이너에서는 시세 사이트가 막혀 있음)
+
+- 주가: Yahoo(yfinance), 전 기간을 매번 새로 받는다(조정종가가 새 분배금마다 과거까지 다시 계산되므로
+  append-only로 쌓으면 총수익 비율 A2가 틀어진다). 결과: nail/data/prices/{이름}.csv
+- 거시: FRED fredgraph.csv, 전 기간. 결과: nail/data/macro/{ID}.csv
+  HY OAS(BAMLH0A0HYM2)는 FRED가 최근 3년만 보내므로 soxl-data의 보존 이력(data/macro)과 합친다.
+- 분배금: nail/data/dividends/{이름}.csv
+- 상태: nail/data/fetch_status.json (시리즈별 행수·마지막 날짜·실패)
+- 처음 한 번만: soxl-data 공용 수집기용 시드 파일(data/prices/NAIL.csv, ITB.csv, data/macro/DGS10.csv 등)을
+  파일이 없을 때만 만든다. 이미 있으면 건드리지 않는다(공용 수집기의 '기존 행 불변' 원칙).
+"""
+import os, sys, json, time
+from datetime import datetime, timezone, timedelta
+import pandas as pd
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.path.join(ROOT, 'nail', 'data')
+KST = timezone(timedelta(hours=9)); NOW = datetime.now(KST)
+
+# 이름: Yahoo 심볼
+PRICES = {
+    'NAIL': 'NAIL', 'ITB': 'ITB', 'SPY': 'SPY', 'XHB': 'XHB',
+    'LEN': 'LEN', 'DHI': 'DHI', 'PHM': 'PHM', 'NVR': 'NVR', 'TOL': 'TOL',
+    'HYG': 'HYG', 'TLT': 'TLT', 'IWM': 'IWM', 'KRE': 'KRE',
+    'GSPC': '^GSPC', 'VIX': '^VIX', 'TNX': '^TNX', 'IRX': '^IRX', 'MOVE': '^MOVE',
+}
+FRED = [
+    # 신용·변동성
+    'VIXCLS', 'BAMLH0A0HYM2', 'BAA10Y', 'NFCI', 'STLFSI4',
+    # 금리
+    'DGS10', 'DGS2', 'DGS30', 'DFF', 'FEDFUNDS', 'DFEDTARU', 'T10Y2Y', 'T10Y3M', 'DFII10', 'T5YIE',
+    'MORTGAGE30US', 'MORTGAGE15US', 'OBMMIJUMBO30YF',
+    # 물가·경기
+    'CPIAUCSL', 'CPILFESL', 'UNRATE', 'ICSA', 'PAYEMS', 'INDPRO', 'UMCSENT', 'USREC', 'DCOILWTICO',
+    # 주택
+    'HOUST', 'HOUST1F', 'PERMIT', 'PERMIT1', 'HSN1F', 'MSACSR', 'EXHOSLUSM495S', 'CSUSHPINSA', 'MSPUS',
+    'NHSUSSPT', 'COMPUTSA', 'UNDCONTSA',
+]
+SEED_PRICES = ('NAIL', 'ITB')                     # soxl-data 공용 수집기 시드(없을 때만)
+SEED_FRED = ('DGS10', 'DGS2', 'MORTGAGE30US')
+status = dict(run_at_kst=NOW.strftime('%Y-%m-%d %H:%M:%S'), prices={}, macro={}, failed=[], notes=[])
+
+
+def fetch_yahoo(sym):
+    import yfinance as yf
+    last = None
+    for k in range(3):
+        try:
+            t = yf.Ticker(sym)
+            raw = t.history(period='max', interval='1d', auto_adjust=False, actions=True)
+            if raw is None or raw.empty: raise ValueError('빈 응답')
+            idx = pd.to_datetime(raw.index)
+            idx = idx.tz_localize(None) if idx.tz is not None else idx
+            d = pd.DataFrame({'date': idx.normalize(), 'open': raw['Open'].values, 'high': raw['High'].values,
+                              'low': raw['Low'].values, 'close': raw['Close'].values,
+                              'adj_close': (raw['Adj Close'] if 'Adj Close' in raw else raw['Close']).values,
+                              'volume': raw['Volume'].values if 'Volume' in raw else 0})
+            d = d.dropna(subset=['close']).drop_duplicates('date', keep='last').sort_values('date')
+            # 장중 실행이면 오늘 행은 미확정 값이므로 버린다(미국 동부 16:30 이전)
+            et = datetime.now(timezone.utc).astimezone(__import__('zoneinfo').ZoneInfo('America/New_York'))
+            if len(d) and d.date.iloc[-1].date() == et.date() and (et.hour, et.minute) < (16, 30):
+                status['notes'].append(f'{sym}: 장중 미확정 행 {et.date()} 제외'); d = d.iloc[:-1]
+            div = raw['Dividends'] if 'Dividends' in raw else pd.Series(dtype=float)
+            div = div[div > 0]
+            dv = pd.DataFrame({'date': pd.to_datetime(div.index).tz_localize(None).normalize() if len(div) else [],
+                               'dividend': div.values})
+            spl = raw['Stock Splits'] if 'Stock Splits' in raw else pd.Series(dtype=float)
+            spl = spl[spl > 0]
+            return d.reset_index(drop=True), dv, [(str(pd.Timestamp(i).date()), float(v)) for i, v in spl.items()]
+        except Exception as e:
+            last = e; time.sleep(3 + 3 * k)
+    raise last
+
+
+def fetch_fred(sid):
+    url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=1776-07-04&coed={NOW:%Y-%m-%d}'
+    last = None
+    for k in range(3):
+        try:
+            raw = pd.read_csv(url)
+            raw.columns = ['date', 'value']
+            raw['date'] = pd.to_datetime(raw['date']); raw['value'] = pd.to_numeric(raw['value'], errors='coerce')
+            raw = raw.dropna().sort_values('date').reset_index(drop=True)
+            if raw.empty: raise ValueError('전량 결측')
+            return raw
+        except Exception as e:
+            last = e; time.sleep(2 + 2 * k)
+    raise last
+
+
+def main():
+    for sub in ('prices', 'macro', 'dividends'):
+        os.makedirs(os.path.join(OUT, sub), exist_ok=True)
+    for name, sym in PRICES.items():
+        try:
+            d, dv, spl = fetch_yahoo(sym)
+            d.to_csv(os.path.join(OUT, 'prices', f'{name}.csv'), index=False, float_format='%.6f')
+            if len(dv): dv.to_csv(os.path.join(OUT, 'dividends', f'{name}.csv'), index=False, float_format='%.6f')
+            status['prices'][name] = dict(symbol=sym, rows=len(d), first=str(d.date.min().date()), last=str(d.date.max().date()),
+                                         last_close=round(float(d.close.iloc[-1]), 4), splits=spl)
+            print(f'[OK] {name:5s} {len(d):6d}행 {d.date.min().date()} ~ {d.date.max().date()} 종가 {d.close.iloc[-1]:.2f}')
+            if name in SEED_PRICES:
+                seed = os.path.join(ROOT, 'data', 'prices', f'{name}.csv')
+                if not os.path.exists(seed):
+                    s = d.copy(); s['source'] = 'yahoo'
+                    s.to_csv(seed, index=False); status['notes'].append(f'시드 생성 {seed}')
+        except Exception as e:
+            status['failed'].append(f'{name}: {type(e).__name__} {str(e)[:80]}'); print(f'[FAIL] {name}: {e}')
+        time.sleep(1)
+    for sid in FRED:
+        try:
+            d = fetch_fred(sid)
+            if sid == 'BAMLH0A0HYM2':        # FRED 절단 → soxl-data 보존 이력과 합침
+                keep = os.path.join(ROOT, 'data', 'macro', 'BAMLH0A0HYM2.csv')
+                if os.path.exists(keep):
+                    old = pd.read_csv(keep, usecols=[0, 1]); old.columns = ['date', 'value']
+                    old['date'] = pd.to_datetime(old['date']); old['value'] = pd.to_numeric(old['value'], errors='coerce')
+                    old = old.dropna()
+                    d = pd.concat([old[old.date < d.date.min()], d]).drop_duplicates('date', keep='last').sort_values('date')
+                    status['notes'].append(f'HY: 보존 이력 {len(old)}행 + FRED {len(d)}행 병합')
+            d.to_csv(os.path.join(OUT, 'macro', f'{sid}.csv'), index=False)
+            status['macro'][sid] = dict(rows=len(d), first=str(d.date.min().date()), last=str(d.date.max().date()),
+                                        last_value=float(d.value.iloc[-1]))
+            print(f'[OK] {sid:14s} {len(d):6d}행 ~ {d.date.max().date()} {d.value.iloc[-1]}')
+            if sid in SEED_FRED:
+                seed = os.path.join(ROOT, 'data', 'macro', f'{sid}.csv')
+                if not os.path.exists(seed):
+                    s = d.copy(); s['source'] = 'fred'; s.to_csv(seed, index=False); status['notes'].append(f'시드 생성 {seed}')
+        except Exception as e:
+            status['failed'].append(f'{sid}: {type(e).__name__} {str(e)[:80]}'); print(f'[FAIL] {sid}: {e}')
+        time.sleep(0.6)
+    json.dump(status, open(os.path.join(OUT, 'fetch_status.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    print('실패:', status['failed'])
+    core = [k for k in ('NAIL', 'ITB', 'SPY') if k not in status['prices']] + \
+           [k for k in ('VIXCLS', 'BAMLH0A0HYM2') if k not in status['macro']]
+    if core:
+        print('::error::핵심 시리즈 실패', core); sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
+
+##### FILE: nail/scripts/run_daily.py #####
+# -*- coding: utf-8 -*-
+"""
+NAIL R9 일일 판정 (엔진 v1.2 원자료 모드) + 전진 기록 누적
+
+실행: python nail/scripts/run_daily.py
+입력: nail/data/prices/{NAIL,ITB,SPY}.csv, nail/data/macro/{VIXCLS,BAMLH0A0HYM2}.csv (fetch_nail_data.py 결과)
+출력: nail/output/engine/(r8_daily.csv, r8_fills.csv, r8_status.json)  — 엔진 원 출력
+      nail/output/score_log.csv  — 평가일별 1행, 같은 날짜가 이미 있으면 덮지 않고 건너뜀(전진 기록 보존)
+      nail/output/LATEST.md      — 최신 판정 요약
+"""
+import os, sys, json, subprocess
+from datetime import datetime, timezone, timedelta
+import pandas as pd
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+N = os.path.join(ROOT, 'nail'); D = os.path.join(N, 'data'); O = os.path.join(N, 'output'); E = os.path.join(O, 'engine')
+KST = timezone(timedelta(hours=9))
+
+
+def _md(df):
+    cols = list(df.columns)
+    out = ['| ' + ' | '.join(cols) + ' |', '|' + '---|' * len(cols)]
+    out += ['| ' + ' | '.join(str(v) for v in r) + ' |' for r in df.itertuples(index=False)]
+    return '\n'.join(out)
+
+
+def main():
+    os.makedirs(E, exist_ok=True)
+    cmd = [sys.executable, os.path.join(N, 'engine', 'nail_r9_engine_v1.2.py'),
+           '--nail', f'{D}/prices/NAIL.csv', '--itb', f'{D}/prices/ITB.csv', '--spy', f'{D}/prices/SPY.csv',
+           '--vix', f'{D}/macro/VIXCLS.csv', '--hy', f'{D}/macro/BAMLH0A0HYM2.csv', '--out', E]
+    try:
+        import exchange_calendars  # noqa: F401
+    except Exception:
+        cmd += ['--calendar-from', f'{D}/prices/SPY.csv']
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    print(r.stdout); print(r.stderr, file=sys.stderr)
+    if r.returncode != 0: sys.exit(r.returncode)
+    st = json.load(open(os.path.join(E, 'r8_status.json'), encoding='utf-8'))
+    daily = pd.read_csv(os.path.join(E, 'r8_daily.csv'), index_col=0, parse_dates=True)
+    last = daily.iloc[-1]; d = daily.index[-1]
+    row = dict(date=str(d.date()), recorded_at_kst=datetime.now(KST).strftime('%Y-%m-%d %H:%M'),
+               nail_close=round(float(last.close), 4), display=st['display_score'], cond=st['condition_score'],
+               N=last.N, A1=last.get('A1'), A2=last.get('A2'), A3=last.get('A3'), A4=last.get('A4'), S=last.S,
+               dd252=round(float(last.dd252), 4), A1_dd756=round(float(last.get('A1_dd756')), 4),
+               A2_rs504=round(float(last.get('A2_rs504')), 2), A3_rsiW=round(float(last.get('A3_rsiW')), 2),
+               A4_ma200w=round(float(last.get('A4_ma200w')), 4), hy_pct10y=round(float(last.hy_pct10y), 1),
+               vix60max=float(last.vix60max), verdict=st['verdict'], problems=' | '.join(st['problems']))
+    log = os.path.join(O, 'score_log.csv')
+    if os.path.exists(log):
+        L = pd.read_csv(log)
+        if row['date'] in set(L.date.astype(str)):
+            print('score_log: 같은 날짜가 이미 기록됨 — 보존(덮지 않음)')
+        else:
+            pd.concat([L, pd.DataFrame([row])]).to_csv(log, index=False)
+    else:
+        pd.DataFrame([row]).to_csv(log, index=False)
+    fills = pd.read_csv(os.path.join(E, 'r8_fills.csv'))
+    md = [f'# NAIL R9 최신 판정 — {row["date"]} 미국 종가', '',
+          f'- 기록 시각(KST): {row["recorded_at_kst"]} · 엔진 {st["engine_version"]} · 원자료 모드(ITB·SPY·NAIL 전 기간)',
+          f'- **표시점수 {row["display"]:.0f}** (조건 {row["cond"]:.0f} = N {row["N"]:.0f} + A {last.A:.0f} + S {row["S"]:.0f})',
+          f'- 판정: {st["verdict"]}', '',
+          '| 블록 | 원값 | 점수 |', '|---|---|---:|',
+          f'| N | NAIL {row["nail_close"]:.2f} / 252일 최고 {st["ref_high_252"]:.2f} = {row["dd252"]:+.1%} | {row["N"]:.0f} |',
+          f'| A1 | ITB 756일 낙폭 {row["A1_dd756"]:+.1%} | {row["A1"]:.0f} |',
+          f'| A2 | ITB/SPY 총수익 504일 위치 {row["A2_rs504"]:.1f} | {row["A2"]:.0f} |',
+          f'| A3 | ITB 완결 주봉 RSI14 {row["A3_rsiW"]:.2f} | {row["A3"]:.0f} |',
+          f'| A4 | ITB / 200주 평균 {row["A4_ma200w"]:+.1%} | {row["A4"]:.0f} |',
+          f'| S | HY 10년 백분위 {row["hy_pct10y"]:.1f} · VIX 60거래일 최고 {row["vix60max"]:.2f} | {row["S"]:.0f} |', '',
+          'N 점수 경계(NAIL 종가): ' + ' · '.join(f'{k} ≤ {v}' for k, v in st['nail_price_for_N_bands'].items()), '',
+          f'원천 마지막 관측: {st["data"]["last_obs"]}', '',
+          '경고: ' + ('; '.join(st['problems']) if st['problems'] else '없음'), '',
+          '## 모형 가상 체결 (R9)', '', _md(fills),
+          '', '*인샘플 규칙의 기계적 판정이며 투자 권유가 아니다.*']
+    open(os.path.join(O, 'LATEST.md'), 'w', encoding='utf-8').write('\n'.join(md) + '\n')
+    print('\n'.join(md[:6]))
+
+
+if __name__ == '__main__':
+    main()
+
+##### FILE: nail/research/acceptance_check.py #####
+# 원자료 인수 검사 (사전 고정 문서 §1): 엔진 v1.2 원자료 모드 결과 vs 인계 문서 기록값
+import pandas as pd, numpy as np
+E = 'nail/output/engine'
+d = pd.read_csv(f'{E}/r8_daily.csv', index_col=0, parse_dates=True)
+f = pd.read_csv(f'{E}/r8_fills.csv'); ref = pd.read_csv('nail/data/r9_v12_fills.csv')
+print('=== 1. R9 가상 체결 13건 ===')
+m = ref.merge(f, on=['campaign', 'tranche'], how='outer', suffixes=('_ref', '_raw'))
+m['px_diff%'] = (m.fill_px_raw / m.fill_px_ref - 1) * 100
+print(m[['campaign', 'tranche', 'signal_ref', 'signal_raw', 'fill_ref', 'fill_raw', 'fill_px_ref', 'fill_px_raw', 'px_diff%', 'display_at_signal_ref', 'display_at_signal_raw']].to_string(index=False))
+ok = (m.signal_ref == m.signal_raw).all() and (m.fill_ref == m.fill_raw).all() and (m['px_diff%'].abs() < 0.5).all()
+print('판정:', '일치' if ok else '불일치 있음')
+print('\n=== 2. 저점일 표시점수 구성 ===')
+C5 = {'2016-02-11': (20, 16, 10), '2016-11-02': (0, 10, 0), '2018-12-24': (40, 22, 7), '2020-03-23': (50, 30, 20),
+      '2022-10-20': (40, 17, 10), '2023-10-25': (10, 6, 5), '2025-04-08': (30, 16, 15)}
+for k, (n, a, s) in C5.items():
+    r = d.loc[k]
+    print(f'{k} 기록 N{n} A{a} S{s} 표시{100-n-a-s:3d} | 원자료 N{r.N:.0f} A{r.A:.0f}(A1 {r.A1:.0f} A2 {r.A2:.0f} A3 {r.A3:.0f} A4 {r.A4:.0f}) S{r.S:.0f} 표시{r.score_display:.0f}',
+          '' if (r.N, r.A, r.S) == (n, a, s) else '  ← 차이')
+print('\n=== 3. R7.3 9/21 원값 ===')
+r = d.loc['2026-09-21']
+print(f'A1 756일 낙폭 기록 -31.8076% | 원자료 {r.A1_dd756*100:.4f}%')
+print(f'A4 200주 이격 기록 -7.9867% | 원자료 {r.A4_ma200w*100:.4f}%')
+print(f"주봉 RSI 9/11 주 기록 40.51 | 원자료 {d.loc['2026-09-14','A3_rsiW']:.2f} (9/14 시점 값=9/11 주) ; 9/18 주 기록 38.42 | 원자료 {d.loc['2026-09-21','A3_rsiW']:.2f}")
+itb = pd.read_csv('nail/data/prices/ITB.csv', parse_dates=['date']).set_index('date')
+hi = itb.close.rolling(756).max()
+print(f"ITB 756일 최고(9/21 창) {hi.loc['2026-09-21']:.2f} 날짜 {itb.close.loc[:'2026-09-21'].tail(756).idxmax().date()} | 수기 추정 129.34")
+print('\n=== 4. 수기 일별 표(9/22~10/15) 대조 ===')
+MAN = {'09-22':73,'09-23':60,'09-24':60,'09-25':62,'09-28':62,'09-29':62,'09-30':62,'10-01':62,'10-02':60,'10-05':57,'10-06':60,'10-07':57,'10-08':57,'10-09':57,'10-12':57,'10-13':57,'10-14':57,'10-15':60}
+cols = ['close', 'N', 'A1', 'A2', 'A3', 'A4', 'S', 'score_display', 'A1_dd756', 'A2_rs504', 'A3_rsiW', 'A4_ma200w', 'hy_pct10y', 'vix60max']
+t = d.loc['2026-09-22':, cols].copy(); t['수기'] = [MAN.get(x.strftime('%m-%d')) for x in t.index]
+t['차이'] = t.score_display - t['수기']
+pd.set_option('display.width', 250); print(t.round(4).to_string())
+
+##### FILE: nail/research/bottom_study.py #####
+# -*- coding: utf-8 -*-
+"""
+NAIL 과거 최저점 환경·공통점 연구 + "최저점 통과 여부" 기준률 (사전 고정: 2026-10-16_bottom_study_preregistration.md)
+실행: python3 nail/research/bottom_study.py   (nail/data 원자료, nail/output/engine/r8_daily.csv 필요)
+출력: nail/research/output/*.csv, 화면 요약
+"""
+import os, importlib.util
+import numpy as np, pandas as pd
+
+R = 'nail/data'; OUT = 'nail/research/output'; os.makedirs(OUT, exist_ok=True)
+pd.set_option('display.width', 260); pd.set_option('display.max_columns', 60); pd.set_option('display.max_colwidth', 40)
+
+def px(n):
+    d = pd.read_csv(f'{R}/prices/{n}.csv', parse_dates=['date']).set_index('date'); return d
+def mac(n):
+    d = pd.read_csv(f'{R}/macro/{n}.csv', parse_dates=['date']).set_index('date').value; return d.dropna()
+
+NAIL, ITB, SPY = px('NAIL'), px('ITB'), px('SPY')
+M = {k: mac(k) for k in ['VIXCLS', 'BAMLH0A0HYM2', 'DGS10', 'DGS2', 'MORTGAGE30US', 'DFF', 'CPIAUCSL', 'UNRATE', 'USREC',
+                         'NFCI', 'HOUST', 'PERMIT', 'HSN1F', 'MSACSR', 'T10Y2Y', 'DCOILWTICO']}
+TD = SPY.index                                  # 거래일 달력(SPY)
+pos = {d: i for i, d in enumerate(TD)}
+
+# 엔진 함수 재사용(ITB A블록을 2006년부터 계산)
+spec = importlib.util.spec_from_file_location('eng', 'nail/engine/nail_r9_engine_v1.2.py'); eng = importlib.util.module_from_spec(spec); spec.loader.exec_module(eng)
+sessions, _ = eng.get_sessions(TD[0], TD[-1] + pd.Timedelta(days=14))
+tdA = TD[TD >= ITB.index[0]]
+_, APARTS = eng.block_A_raw(ITB, SPY, tdA, sessions)
+
+def asof(s, t):
+    s = s[s.index <= t]; return (s.iloc[-1], s.index[-1]) if len(s) else (np.nan, None)
+
+def hy_pct(t):
+    hy = M['BAMLH0A0HYM2']; v, d0 = asof(hy, t)
+    if d0 is None: return np.nan
+    p = hy[(hy.index >= d0 - pd.DateOffset(years=10)) & (hy.index < d0)]
+    return 100 * np.mean(p.values <= v) if len(p) >= 1000 else np.nan
+
+def on_td(s):   # 일별 시계열을 거래일로 맞춤(이월)
+    return s.reindex(TD.union(s.index)).ffill().reindex(TD)
+
+VIX = on_td(M['VIXCLS']); HY = on_td(M['BAMLH0A0HYM2']); Y10 = on_td(M['DGS10']); Y2 = on_td(M['DGS2'])
+MTG = on_td(M['MORTGAGE30US']); FF = on_td(M['DFF']); NFCI = on_td(M['NFCI'])
+SPYc = SPY.close; ITBc = ITB.close.reindex(TD)
+
+# 합성 3배(표본 D): ITB 총수익 일간 수익률 ×3 − (2×DFF + 0.95%)/252
+itr = ITB.adj_close.pct_change()
+cost = (2 * FF.reindex(itr.index).ffill() / 100 + 0.0095) / 252
+syn_r = 3 * itr - cost
+SYN = (1 + syn_r.fillna(0)).cumprod() * 100
+# NAIL 상장 뒤 구간에서 합성과 실제의 추적 정도
+ov = NAIL.index[NAIL.index >= '2015-09-01']
+nr = NAIL.adj_close.pct_change().reindex(ov); sr = syn_r.reindex(ov)
+TRACK = dict(corr=round(nr.corr(sr), 4), ann_gap=round(((1 + nr).prod() ** (252 / len(ov)) - (1 + sr).prod() ** (252 / len(ov))) * 100, 2))
+# 이어 붙인 'NAIL 확장' 가격(2015-08-19 이전 합성, 이후 실제 종가)
+k0 = NAIL.index[0]
+EXT = pd.concat([SYN[SYN.index < k0] / SYN.loc[k0] * NAIL.close.loc[k0], NAIL.close]).sort_index()
+
+def zigzag(s, th):
+    """종가 지그재그. th 이상 반대 방향 움직임이 나오면 직전 극점 확정. 반환 [(날짜, 값, 'L'/'H')]"""
+    v = s.values; ix = s.index; piv = []; mode = 0; hi_i = lo_i = 0
+    for i in range(1, len(v)):
+        if v[i] > v[hi_i]: hi_i = i
+        if v[i] < v[lo_i]: lo_i = i
+        if mode >= 0 and v[i] <= v[hi_i] * (1 - th) and (mode == 1 or hi_i < i):
+            if mode == 0 and lo_i < hi_i: piv.append((ix[lo_i], v[lo_i], 'L'))
+            piv.append((ix[hi_i], v[hi_i], 'H')); mode = -1; lo_i = i
+        elif mode <= 0 and v[i] >= v[lo_i] * (1 + th) and (mode == -1 or lo_i < i):
+            if mode == 0 and hi_i < lo_i: piv.append((ix[hi_i], v[hi_i], 'H'))
+            piv.append((ix[lo_i], v[lo_i], 'L')); mode = 1; hi_i = i
+    return piv
+
+def win(series, t, a, b):
+    i = pos[t]; return series.iloc[max(0, i + a): min(len(series), i + b + 1)]
+
+def peak_lag(series, t, a, b, mode='max'):
+    w = win(series.reindex(TD), t, a, b).dropna()
+    if not len(w): return np.nan
+    d = w.idxmax() if mode == 'max' else w.idxmin()
+    return pos[d] - pos[t]
+
+def env(t, price=None, label=''):
+    """저점일 t의 환경 변수(사전 고정 §4)"""
+    t = TD[TD.searchsorted(t)] if t not in pos else t
+    i = pos[t]; r = dict(date=t.date().isoformat(), label=label)
+    P = (price if price is not None else NAIL.close)
+    if t in P.index:
+        h252 = P.loc[:t].tail(252); r['NAIL_dd252'] = P.loc[t] / h252.max() - 1
+        r['NAIL_ddATH'] = P.loc[t] / P.loc[:t].max() - 1
+        r['days_from_252hi'] = len(P.loc[h252.idxmax():t]) - 1
+    if t in APARTS.index:
+        a = APARTS.loc[t]; r.update(ITB_dd756=a.A1_dd756, ITB_rs504=a.A2_rs504, ITB_rsiW=a.A3_rsiW, ITB_ma200w=a.A4_ma200w)
+    r['ITB_low_lag'] = peak_lag(ITBc, t, -63, 63, 'min')
+    r['SPY_dd252'] = SPYc.loc[t] / SPYc.loc[:t].tail(252).max() - 1
+    r['SPY_low_lag'] = peak_lag(SPYc, t, -63, 63, 'min')
+    r['HY'] = HY.loc[t]; r['HY_pct10y'] = hy_pct(t); r['HY_chg63_bp'] = (HY.loc[t] - HY.iloc[max(0, i - 63)]) * 100
+    r['HY_peak_lag'] = peak_lag(HY, t, -63, 63)
+    r['VIX'] = VIX.loc[t]; r['VIX60max'] = VIX.iloc[max(0, i - 59): i + 1].max(); r['VIX_peak_lag'] = peak_lag(VIX, t, -63, 63)
+    r['Y10'] = Y10.loc[t]; r['Y10_vs252max_bp'] = (Y10.loc[t] - Y10.iloc[max(0, i - 251): i + 1].max()) * 100
+    r['Y10_chg63_bp'] = (Y10.loc[t] - Y10.iloc[max(0, i - 63)]) * 100; r['Y10_peak_lag'] = peak_lag(Y10, t, -126, 63)
+    r['Y2'] = Y2.loc[t]; r['Y2_peak_lag'] = peak_lag(Y2, t, -126, 63)
+    r['MTG'] = MTG.loc[t]; r['MTG_vs52wmax'] = MTG.loc[t] - MTG.iloc[max(0, i - 251): i + 1].max(); r['MTG_peak_lag'] = peak_lag(MTG, t, -126, 63)
+    r['FF'] = FF.loc[t]; r['FF_chg_prev126'] = FF.loc[t] - FF.iloc[max(0, i - 126)]
+    r['FF_chg_next126'] = (FF.iloc[min(len(FF) - 1, i + 126)] - FF.loc[t]) if i + 126 < len(FF) else np.nan
+    r['T10Y2Y'] = (Y10.loc[t] - Y2.loc[t])
+    m = (t - pd.DateOffset(days=45)).to_period('M').to_timestamp()        # 발표 지연 감안: 45일 전 달
+    cpi = M['CPIAUCSL']
+    if m in cpi.index:
+        yo = cpi.loc[m] / cpi.loc[m - pd.DateOffset(years=1)] - 1; yo3 = cpi.loc[m - pd.DateOffset(months=3)] / cpi.loc[m - pd.DateOffset(months=15)] - 1
+        r['CPI_yoy'] = yo; r['CPI_yoy_chg3m_pp'] = (yo - yo3) * 100
+    ur = M['UNRATE']
+    if m in ur.index: r['UNRATE_chg12m'] = ur.loc[m] - ur.loc[m - pd.DateOffset(years=1)]
+    r['USREC'] = M['USREC'].get(t.to_period('M').to_timestamp(), np.nan)
+    r['NFCI'] = NFCI.loc[t]
+    for k in ('HOUST', 'PERMIT', 'HSN1F'):
+        s = M[k]
+        if m in s.index: r[f'{k}_yoy'] = s.loc[m] / s.loc[m - pd.DateOffset(years=1)] - 1
+    if m in M['MSACSR'].index: r['MSACSR'] = M['MSACSR'].loc[m]
+    shock = (r['VIX60max'] >= 33) or (r['HY_pct10y'] >= 75 if r['HY_pct10y'] == r['HY_pct10y'] else False)
+    rate = (r['Y10_peak_lag'] == r['Y10_peak_lag']) and (-63 <= r['Y10_peak_lag'] <= 21)
+    r['type'] = '충격+금리' if shock and rate else '충격' if shock else '금리' if rate else '기타'
+    return r
+
+# ---------------- 표본
+A_DATES = ['2016-02-11', '2016-11-02', '2018-12-24', '2020-03-23', '2022-10-20', '2023-10-25', '2025-04-08']
+A = pd.DataFrame([env(pd.Timestamp(d), label='A') for d in A_DATES])
+
+zz = zigzag(ITB.close, 0.30)
+B_list = [(d, v) for d, v, k in zz if k == 'L']
+B = pd.DataFrame([env(d, price=EXT, label='B') for d, v in B_list])
+B['ITB_low'] = [v for _, v in B_list]
+B['ITB_dd_from_prev_hi'] = [v / max([x for dd, x, k in zz if k == 'H' and dd < d] or [np.nan]) - 1 for d, v in B_list]
+
+# 표본 C: NAIL 252일 낙폭 −50% 이하에서 25% 지그재그 저점 중, 126거래일 안에 깨진 것
+nz = zigzag(NAIL.close, 0.25); C_rows = []
+for d, v, k in nz:
+    if k != 'L': continue
+    dd = v / NAIL.close.loc[:d].tail(252).max() - 1
+    fut = NAIL.close.loc[d:].iloc[1:127]
+    if dd <= -0.50 and len(fut) and (fut < v).any():
+        r = env(d, label='C'); r['broken_after_td'] = int(np.argmax(fut.values < v)) + 1
+        r['next_low_vs'] = fut.min() / v - 1; C_rows.append(r)
+C = pd.DataFrame(C_rows)
+
+# 현재(10/14 사이클 최저 종가, 마지막 종가)
+NOW = pd.DataFrame([env(pd.Timestamp('2026-10-14'), label='현재 저점'), env(NAIL.index[-1], label='마지막 종가')])
+
+for nm, df in [('A', A), ('B', B), ('C', C), ('NOW', NOW)]:
+    df.to_csv(f'{OUT}/env_{nm}.csv', index=False, float_format='%.4f')
+
+# ---------------- 공통점 후보(사전 고정 §4 변수의 자연 경계)
+CONDS = {
+    'c01 NAIL 252일 낙폭 ≤ −50%': lambda r: r.NAIL_dd252 <= -0.50,
+    'c02 ITB 주봉 RSI ≤ 40': lambda r: r.ITB_rsiW <= 40,
+    'c03 ITB 200주선 아래': lambda r: r.ITB_ma200w <= 0,
+    'c04 ITB/SPY 504일 위치 ≤ 20': lambda r: r.ITB_rs504 <= 20,
+    'c05 ITB 저점이 ±10거래일 안': lambda r: abs(r.ITB_low_lag) <= 10,
+    'c06 SPY 저점이 ±21거래일 안': lambda r: abs(r.SPY_low_lag) <= 21,
+    'c07 SPY 252일 낙폭 ≤ −10%': lambda r: r.SPY_dd252 <= -0.10,
+    'c08 HY 63일 +50bp 이상 상승': lambda r: r.HY_chg63_bp >= 50,
+    'c09 HY 10년 백분위 ≥ 45': lambda r: r.HY_pct10y >= 45,
+    'c10 HY 고점이 ±21거래일 안': lambda r: abs(r.HY_peak_lag) <= 21,
+    'c11 VIX 60일 최고 ≥ 25': lambda r: r.VIX60max >= 25,
+    'c12 VIX 고점이 ±21거래일 안': lambda r: abs(r.VIX_peak_lag) <= 21,
+    'c13 10년물 고점이 −63~+21거래일': lambda r: -63 <= r.Y10_peak_lag <= 21,
+    'c14 10년물 252일 최고 대비 −25bp 이상 하락': lambda r: r.Y10_vs252max_bp <= -25,
+    'c15 모기지 고점이 −63~+21거래일': lambda r: -63 <= r.MTG_peak_lag <= 21,
+    'c16 기준금리 이후 6개월 인하': lambda r: r.FF_chg_next126 <= -0.25,
+    'c17 기준금리 직전 6개월 인상': lambda r: r.FF_chg_prev126 >= 0.25,
+    'c18 CPI 상승률 둔화(3개월 전보다 낮음)': lambda r: r.CPI_yoy_chg3m_pp < 0,
+    'c19 금리 하락 또는 스트레스 급등(c14 또는 c11)': lambda r: (r.Y10_vs252max_bp <= -25) or (r.VIX60max >= 25),
+}
+def tally(df, f):
+    out = []
+    for _, r in df.iterrows():
+        try: v = bool(f(r))
+        except Exception: v = None
+        if v is not None and isinstance(v, (bool, np.bool_)):
+            if any(pd.isna(x) for x in [r.get(k) for k in r.index if k.endswith('lag')] if False): pass
+        out.append(v)
+    return out
+rows = []
+for k, f in CONDS.items():
+    a = tally(A, f); b = tally(B, f); c = tally(C, f); n = tally(NOW, f)
+    rows.append(dict(조건=k, A=f'{sum(x is True for x in a)}/{len(a)}', A_사례=''.join('O' if x else 'x' for x in a),
+                     B=f'{sum(x is True for x in b)}/{len(b)}', C실패저점=f'{sum(x is True for x in c)}/{len(c)}',
+                     현재저점_1014=n[0], 마지막종가=n[1]))
+T = pd.DataFrame(rows); T.to_csv(f'{OUT}/commonality.csv', index=False)
+
+# ---------------- 급반등 기준률(§6-2)
+def rebound_base(th, cluster=10):
+    c = NAIL.close; r1 = c.pct_change(); dd = c / c.rolling(252, min_periods=60).max() - 1
+    ev = c.index[(r1 >= th) & (dd.shift(1) <= -0.50)]
+    rows = []; lastk = None
+    for e in ev:
+        i = c.index.get_loc(e)
+        if lastk is not None and i - lastk <= cluster: continue
+        lastk = i
+        L = c.iloc[max(0, i - 10): i + 1].min(); Ld = c.iloc[max(0, i - 10): i + 1].idxmin()
+        fut = c.iloc[i + 1: i + 127]
+        done = len(fut) >= 126
+        held = bool((fut >= L).all()) if len(fut) else None
+        rows.append(dict(date=e.date().isoformat(), ret=round(r1.loc[e] * 100, 1), dd252=round(dd.shift(1).loc[e] * 100, 1),
+                         prior_low=round(L, 2), prior_low_date=Ld.date().isoformat(), held_126=held if done else f'진행중({len(fut)}일)',
+                         next_min_vs_low=round((fut.min() / L - 1) * 100, 1) if len(fut) else None,
+                         ret_126=round((fut.iloc[-1] / c.loc[e] - 1) * 100, 1) if done else None))
+    return pd.DataFrame(rows)
+RB8 = rebound_base(0.08); RB10 = rebound_base(0.10)
+RB8.to_csv(f'{OUT}/rebound_8pct.csv', index=False); RB10.to_csv(f'{OUT}/rebound_10pct.csv', index=False)
+
+# ---------------- 추가 하락 기준률(§6-3): 252일 낙폭 −65% 이하인 날
+def downside_base(P, lab, th=-0.65):
+    dd = P / P.rolling(252, min_periods=60).max() - 1
+    days = P.index[dd <= th]; rows = []
+    for d in days:
+        i = P.index.get_loc(d); fut = P.iloc[i + 1: i + 127]
+        if len(fut) < 126: continue
+        rows.append(dict(date=d, dd=dd.loc[d], further=fut.min() / P.loc[d] - 1, r126=fut.iloc[-1] / P.loc[d] - 1))
+    X = pd.DataFrame(rows)
+    if X.empty: return X, None
+    X['episode'] = (X.date.diff().dt.days.fillna(999) > 60).cumsum()
+    q = lambda s: ' / '.join(f'{v*100:+.0f}%' for v in s.quantile([0.1, 0.25, 0.5, 0.75, 0.9]))
+    ep = X.groupby('episode').agg(start=('date', 'min'), end=('date', 'max'), days=('date', 'size'), worst_further=('further', 'min'),
+                                  med_r126=('r126', 'median'))
+    summ = dict(표본=lab, 일수=len(X), 에피소드=len(ep), 추가하락_분위=q(X.further), r126_분위=q(X.r126),
+                추가하락_30이상_비율=f'{(X.further <= -0.30).mean():.0%}', r126_양수_비율=f'{(X.r126 > 0).mean():.0%}')
+    return ep, summ
+EP_N, S_N = downside_base(NAIL.close, 'NAIL 실제 2015~')
+EP_S, S_S = downside_base(EXT[EXT.index < k0], '합성 3배 2006~2015')
+EP_N.to_csv(f'{OUT}/downside_episodes_nail.csv'); EP_S.to_csv(f'{OUT}/downside_episodes_synthetic.csv')
+
+if __name__ == '__main__':
+    print('합성 3배 추적(2015-09~):', TRACK)
+    show = ['date', 'type', 'NAIL_dd252', 'NAIL_ddATH', 'days_from_252hi', 'ITB_dd756', 'ITB_rsiW', 'ITB_ma200w', 'ITB_rs504', 'ITB_low_lag', 'SPY_dd252', 'SPY_low_lag',
+            'HY', 'HY_pct10y', 'HY_chg63_bp', 'HY_peak_lag', 'VIX', 'VIX60max', 'VIX_peak_lag']
+    show2 = ['date', 'Y10', 'Y10_vs252max_bp', 'Y10_chg63_bp', 'Y10_peak_lag', 'Y2_peak_lag', 'MTG', 'MTG_vs52wmax', 'MTG_peak_lag', 'FF', 'FF_chg_prev126', 'FF_chg_next126',
+             'T10Y2Y', 'CPI_yoy', 'CPI_yoy_chg3m_pp', 'UNRATE_chg12m', 'USREC', 'NFCI', 'HOUST_yoy', 'PERMIT_yoy', 'HSN1F_yoy', 'MSACSR']
+    for nm, df in [('A 연구 표준 7개', A), ('B ITB 지그재그 30%', B), ('C 실패 저점', C), ('현재', NOW)]:
+        print(f'\n===== {nm} ({len(df)}) =====')
+        print(df[[c for c in show if c in df]].round(3).to_string(index=False))
+        print(df[[c for c in show2 if c in df]].round(3).to_string(index=False))
+        if nm.startswith('C'): print(df[['date', 'broken_after_td', 'next_low_vs']].round(3).to_string(index=False))
+    print('\n===== 공통점 =====\n', T.to_string(index=False))
+    print('\n===== 급반등 +8% (낙폭 −50% 이하, 10거래일 묶음) =====\n', RB8.to_string(index=False))
+    print('\n===== 급반등 +10% =====\n', RB10.to_string(index=False))
+    print('\n===== 추가 하락 기준률 (252일 낙폭 ≤ −65%) =====')
+    print(S_N); print(EP_N.round(3).to_string()); print(S_S); print(EP_S.round(3).to_string())
+
+##### FILE: nail/research/bottom_study2.py #####
+# -*- coding: utf-8 -*-
+# 보조 분석(사전 고정 §6을 실시간 판정 형태로 다듬은 것). bottom_study.py 결과를 재사용.
+import numpy as np, pandas as pd, runpy
+G = runpy.run_path('nail/research/bottom_study.py', run_name='lib')
+NAIL, SPY, TD, VIX, HY, Y10, MTG, A, C, hy_pct, pos = (G[k] for k in ['NAIL','SPY','TD','VIX','HY','Y10','MTG','A','C','hy_pct','pos'])
+OUT = 'nail/research/output'; c = NAIL.close
+def rt(t):
+    """실시간(그날까지 자료만) 지표"""
+    i = pos[t]; s = SPY.close
+    return dict(date=t.date().isoformat(),
+        SPY_vs63low=s.loc[t] / s.iloc[max(0, i-62):i+1].min() - 1,
+        SPY_dd252=s.loc[t] / s.iloc[max(0, i-251):i+1].max() - 1,
+        VIX_vs63max=VIX.loc[t] / VIX.iloc[max(0, i-62):i+1].max(),
+        VIX_max21_is_max63=VIX.iloc[max(0, i-20):i+1].max() >= VIX.iloc[max(0, i-62):i+1].max(),
+        HY_pct=hy_pct(t), HY_chg63=(HY.loc[t]-HY.iloc[max(0,i-63)])*100,
+        HY_max21_is_max63=HY.iloc[max(0, i-20):i+1].max() >= HY.iloc[max(0, i-62):i+1].max(),
+        Y10_from252max_bp=(Y10.loc[t]-Y10.iloc[max(0,i-251):i+1].max())*100,
+        Y10_peak_days_ago=i - int(np.argmax(Y10.iloc[max(0,i-251):i+1].values)) - max(0,i-251),
+        MTG_from52wmax=MTG.loc[t]-MTG.iloc[max(0,i-251):i+1].max())
+RA = pd.DataFrame([rt(pd.Timestamp(d)) for d in A.date]); RA.insert(0,'set','A 진짜 저점')
+RC = pd.DataFrame([rt(pd.Timestamp(d)) for d in C.date]); RC.insert(0,'set','C 실패 저점')
+RN = pd.DataFrame([rt(pd.Timestamp(d)) for d in ['2026-10-14', str(c.index[-1].date())]]); RN.insert(0,'set','현재')
+RT = pd.concat([RA, RC, RN]); RT.to_csv(f'{OUT}/realtime_checks.csv', index=False, float_format='%.4f')
+pd.set_option('display.width', 250); print(RT.round(3).to_string(index=False))
+chk = {'HY 10년 백분위 ≥45': lambda r: r.HY_pct >= 45, 'SPY가 63일 최저 +5% 이내': lambda r: r.SPY_vs63low <= 0.05,
+       'VIX 최근 21일 안에 63일 최고': lambda r: bool(r.VIX_max21_is_max63), 'HY 최근 21일 안에 63일 최고': lambda r: bool(r.HY_max21_is_max63),
+       'HY 63일 +50bp 이상': lambda r: r.HY_chg63 >= 50, '10년물 252일 최고 대비 −25bp 이하': lambda r: r.Y10_from252max_bp <= -25,
+       'SPY 252일 낙폭 ≤−10%': lambda r: r.SPY_dd252 <= -0.10}
+rows = []
+for k, f in chk.items():
+    a = [f(r) for _, r in RA.iterrows()]; cc = [f(r) for _, r in RC.iterrows()]; n = [f(r) for _, r in RN.iterrows()]
+    rows.append(dict(조건=k, A=f'{sum(a)}/7', A_사례=''.join('O' if x else 'x' for x in a), C=f'{sum(cc)}/{len(cc)}', 현재_1014=n[0], 마지막=n[1]))
+K = pd.DataFrame(rows); K.to_csv(f'{OUT}/realtime_commonality.csv', index=False); print(K.to_string(index=False))
+
+# 새 252일 최저 종가에서 10거래일 안의 +8%/+10% 급반등 → 그 저점이 126거래일 동안 지켜졌나
+def fresh_low_rebound(th):
+    r1 = c.pct_change(); dd = c / c.rolling(252, min_periods=60).max() - 1; lo252 = c.rolling(252, min_periods=60).min()
+    rows = []; used = set()
+    for i in range(1, len(c)):
+        if r1.iloc[i] < th: continue
+        j0 = max(0, i-10); w = c.iloc[j0:i]; jl = j0 + int(np.argmin(w.values)); L = c.iloc[jl]
+        if L > lo252.iloc[jl] + 1e-9 or dd.iloc[jl] > -0.50 or jl in used: continue
+        used.add(jl); fut = c.iloc[i+1:i+127]
+        rows.append(dict(rebound=c.index[i].date().isoformat(), ret=round(r1.iloc[i]*100,1), low_date=c.index[jl].date().isoformat(), low=round(L,2),
+                         dd252_at_low=round(dd.iloc[jl]*100,1), status=('지켜짐' if (fut >= L).all() else '깨짐') if len(fut) >= 126 else f'진행중({len(fut)}일)',
+                         min_after=round((fut.min()/L-1)*100,1) if len(fut) else None, days_to_break=(int(np.argmax(fut.values < L))+1) if len(fut) and (fut < L).any() else None))
+    return pd.DataFrame(rows)
+for th in (0.08, 0.10):
+    F = fresh_low_rebound(th); F.to_csv(f'{OUT}/fresh_low_rebound_{int(th*100)}.csv', index=False)
+    done = F[~F.status.str.startswith('진행')]
+    print(f'\n=== 새 1년 최저 종가 후 10거래일 안 +{int(th*100)}% 급반등: 완료 {len(done)}건 중 지켜짐 {int((done.status=="지켜짐").sum())} ===')
+    print(F.to_string(index=False))
+
+# 252일 낙폭 −65% 첫 도달 에피소드 → 이후 252거래일 최저까지
+dd = c / c.rolling(252, min_periods=60).max() - 1
+first = []; last_i = -999
+for i in range(len(c)):
+    if dd.iloc[i] <= -0.65:
+        if i - last_i > 63: first.append(i)
+        last_i = i
+rows = []
+for i in first:
+    fut = c.iloc[i+1:i+253]
+    rows.append(dict(first_day=c.index[i].date().isoformat(), close=round(c.iloc[i],2), dd=round(dd.iloc[i]*100,1),
+                     min_252=round((fut.min()/c.iloc[i]-1)*100,1) if len(fut) else None, min_date=fut.idxmin().date().isoformat() if len(fut) else None,
+                     days_to_min=int(np.argmin(fut.values))+1 if len(fut) else None, fwd_days=len(fut)))
+E = pd.DataFrame(rows); E.to_csv(f'{OUT}/first_cross_65.csv', index=False); print('\n=== 252일 낙폭 −65% 첫 도달(63거래일 공백으로 구분) ===\n', E.to_string(index=False))
+
+# 저점 이후 경로(진짜 저점 7개): 1·5·10·21·63거래일 수익률, 저점 후 첫 +8% 일까지 일수
+rows = []
+for d in A.date:
+    i = c.index.get_loc(pd.Timestamp(d)); L = c.iloc[i]
+    f = lambda k: round((c.iloc[i+k]/L-1)*100,1)
+    r1 = c.pct_change().iloc[i+1:i+22]
+    rows.append(dict(bottom=d, d1=f(1), d5=f(5), d10=f(10), d21=f(21), d63=f(63), first_8pct_day=(int(np.argmax(r1.values>=0.08))+1) if (r1>=0.08).any() else None,
+                     max_dd_after_21=round((c.iloc[i+1:i+22].min()/L-1)*100,1)))
+P = pd.DataFrame(rows); P.to_csv(f'{OUT}/post_bottom_path.csv', index=False); print('\n=== 진짜 저점 이후 경로(%) ===\n', P.to_string(index=False))
+print('\n최근 금리:', Y10.loc['2026-08-01':].dropna().resample('W-FRI').last().round(2).to_dict())
+print('10년물 252일 최고:', Y10.loc['2025-10-15':].max(), Y10.loc['2025-10-15':].idxmax().date())
+print('모기지:', G['M']['MORTGAGE30US'].loc['2026-06-01':].to_dict())
+
+# 급반등 사건을 저점일 HY 백분위로 나눔(실시간 판별력 점검)
+for th in (0.08, 0.10):
+    F = pd.read_csv(f'{OUT}/fresh_low_rebound_{int(th*100)}.csv'); F = F[~F.status.str.startswith('진행')].copy()
+    F['HY_pct_at_low'] = [hy_pct(pd.Timestamp(d)) for d in F.low_date]
+    F['VIX21max_is_63max'] = [bool(rt(pd.Timestamp(d))['VIX_max21_is_max63']) for d in F.low_date]
+    for lab, m in [('HY≥45', F.HY_pct_at_low >= 45), ('HY<45', F.HY_pct_at_low < 45)]:
+        s = F[m]; print(f'+{int(th*100)}% {lab}: {len(s)}건 중 지켜짐 {int((s.status=="지켜짐").sum())}', list(zip(s.low_date, s.HY_pct_at_low.round(0), s.status)))
+    F.to_csv(f'{OUT}/fresh_low_rebound_{int(th*100)}_hy.csv', index=False)
+
