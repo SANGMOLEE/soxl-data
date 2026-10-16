@@ -2,7 +2,6 @@
  "ok": [
   "yahoo TIGER200IT (139260.KS): 3785행 2011-04-06~2026-10-16",
   "yahoo KOSPI (^KS11): 7344행 1996-12-11~2026-10-15",
-  "yahoo KOSPI200 (^KS200): 1행 2026-10-16~2026-10-16",
   "yahoo KOSDAQ (^KQ11): 6405행 2000-10-16~2026-10-15",
   "yahoo SAMSUNG (005930.KS): 6694행 2000-01-04~2026-10-16",
   "yahoo HYNIX (000660.KS): 6694행 2000-01-04~2026-10-16",
@@ -14,6 +13,7 @@
   "yahoo EWY (EWY): 6647행 2000-05-12~2026-10-16"
  ],
  "failed": [
+  "yahoo KOSPI200 (^KS200): 빈 응답",
   "krx etf_139260: 빈 응답",
   "krx flow_139260: 빈 응답",
   "krx flowvol_139260: 빈 응답",
@@ -32,13 +32,20 @@
   "krx pdf_139260: IndexError('index -1 is out of bounds for axis 0 with size 0')",
   "naver investor KOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=01&page=1')",
   "naver investor KOSDAQ: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=02&page=1')",
-  "naver frgn 139260: ImportError(\"Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib.\")",
-  "naver frgn 005930: ImportError(\"Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib.\")",
-  "naver frgn 000660: ImportError(\"Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib.\")",
+  "naver frgn 139260: ValueError('No tables found')",
+  "naver frgn 005930: ValueError('No tables found')",
+  "naver frgn 000660: ValueError('No tables found')",
   "naver try mapi_VKOSPI: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=100&page=1')",
   "naver try mapi_KPI200: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/index/KPI200/price?pageSize=100&page=1')",
   "naver try sise_VKOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1')",
   "naver try sise_KPI200: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1')",
+  "naver try nhn_investor: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.nhn?bizdate=20261016&sosok=01&page=1')",
+  "naver try nhn_index_day: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.nhn?code=KPI200&page=1')",
+  "naver try mapi_vkospi_basic: HTTPError('409 Client Error: 409 for url: https://m.stock.naver.com/api/index/VKOSPI/basic')",
+  "naver mapi trend 005930: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/stock/005930/trend?pageSize=100&page=1')",
+  "naver mapi trend 000660: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/stock/000660/trend?pageSize=100&page=1')",
+  "naver mapi trend 139260: HTTPError('400 Client Error: 400 for url: https://m.stock.naver.com/api/stock/139260/trend?pageSize=100&page=1')",
+  "naver mapi trend KOSPI: 빈 응답",
   "naver index_day VKOSPI: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1')",
   "naver index_day KOSPI200: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1')"
  ],
@@ -48,7 +55,16 @@
   "naver try fchart_KPI200: HTTP 200, 202117 bytes, head='<?xml version=\"1.0\" encoding=\"EUC-KR\" ?>\\n\\n<protocol>\\n\\n\\n\\n\\t\\n\\t\\t\\t<chartdata symbol=\"KPI200\" name=\"코스피200\" count=\"3000\" timef'",
   "naver try fchart_KOSPI: HTTP 200, 215218 bytes, head='<?xml version=\"1.0\" encoding=\"EUC-KR\" ?>\\n\\n<protocol>\\n\\n\\n\\n\\t\\n\\t\\t\\t<chartdata symbol=\"KOSPI\" name=\"코스피\" count=\"3000\" timeframe'",
   "naver try fchart_139260: HTTP 200, 190716 bytes, head='<?xml version=\"1.0\" encoding=\"EUC-KR\" ?>\\n\\n<protocol>\\n\\n\\n\\n\\t\\n\\t\\n\\t\\t\\t<chartdata symbol=\"139260\" name=\"TIGER 200 IT\" count=\"300'",
+  "naver try mapi_stock_trend: HTTP 200, 6941 bytes, head='[{\"itemCode\":\"005930\",\"bizdate\":\"20261016\",\"foreignerPureBuyQuant\":\"+906,438\",\"foreignerHoldRatio\":\"46.00%\",\"organPureBu'",
+  "naver try mapi_etf_trend: HTTP 200, 6671 bytes, head='[{\"itemCode\":\"139260\",\"bizdate\":\"20261016\",\"foreignerPureBuyQuant\":\"-866\",\"foreignerHoldRatio\":\"0.56%\",\"organPureBuyQuan'",
+  "naver try mapi_index_trend: HTTP 200, 101 bytes, head='{\"bizdate\":\"20261016\",\"personalValue\":\"-5,126\",\"foreignValue\":\"+3,637\",\"institutionalValue\":\"-6,815\"}'",
+  "naver try mapi_index_price: HTTP 200, 5126 bytes, head='[{\"localTradedAt\":\"2026-10-16\",\"closePrice\":\"5,668.05\",\"compareToPreviousClosePrice\":\"113.83\",\"compareToPreviousPrice\":{'",
+  "naver try api_index_chart: HTTP 200, 1660 bytes, head='[{\"localDate\":\"20261001\",\"closePrice\":6971.35,\"openPrice\":6814.49,\"highPrice\":6971.36,\"lowPrice\":6765.06,\"accumulatedTra'",
+  "naver try api_vkospi_chart: HTTP 200, 2 bytes, head='[]'",
+  "naver try fchart_VKOSPI2: HTTP 200, 55 bytes, head='\\n\\n<?xml version=\"1.0\" encoding=\"EUC-KR\" ?>\\n<protocol />'",
+  "naver try investor_total: HTTP 200, 145464 bytes, head='<!DOCTYPE html><html lang=\"ko\" class=\"\" data-theme=\"light\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"w'",
+  "naver try sise_investor_by_date: HTTP 200, 128970 bytes, head='<!DOCTYPE html><html lang=\"ko\" class=\"\" data-theme=\"light\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"w'",
   "krx raw dbms/MDC/STAT/standard/MDCSTAT01201: HTTP 400, 6 bytes"
  ],
- "run_at_utc": "2026-10-16T20:02:12.732856"
+ "run_at_utc": "2026-10-16T20:04:38.187917"
 }
