@@ -1,5 +1,5 @@
 {
- "run_at_kst": "2026-10-17 00:28:14",
+ "run_at_kst": "2026-10-17 00:41:47",
  "prices": {
   "NAIL": {
    "symbol": "NAIL",
@@ -498,9 +498,7 @@
  "failed": [],
  "notes": [
   "NAIL: 장중 미확정 행 2026-10-16 제외",
-  "시드 생성 /home/runner/work/soxl-data/soxl-data/data/prices/NAIL.csv",
   "ITB: 장중 미확정 행 2026-10-16 제외",
-  "시드 생성 /home/runner/work/soxl-data/soxl-data/data/prices/ITB.csv",
   "SPY: 장중 미확정 행 2026-10-16 제외",
   "XHB: 장중 미확정 행 2026-10-16 제외",
   "LEN: 장중 미확정 행 2026-10-16 제외",
@@ -517,9 +515,6 @@
   "^TNX: 장중 미확정 행 2026-10-16 제외",
   "^IRX: 장중 미확정 행 2026-10-16 제외",
   "^MOVE: 장중 미확정 행 2026-10-16 제외",
-  "HY: 보존 이력 7779행 + FRED 7780행 병합",
-  "시드 생성 /home/runner/work/soxl-data/soxl-data/data/macro/DGS10.csv",
-  "시드 생성 /home/runner/work/soxl-data/soxl-data/data/macro/DGS2.csv",
-  "시드 생성 /home/runner/work/soxl-data/soxl-data/data/macro/MORTGAGE30US.csv"
+  "HY: 보존 이력 7779행 + FRED 7780행 병합"
  ]
 }
