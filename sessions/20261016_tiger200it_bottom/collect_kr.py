@@ -154,7 +154,10 @@ try:
         r = SESSION.get(url, timeout=30, **kw); r.raise_for_status(); return r
 
     def read_tables(html, **kw):
-        return pd.read_html(io.StringIO(html), **kw)
+        try:
+            return pd.read_html(io.StringIO(html), flavor="lxml", **kw)
+        except Exception:
+            return pd.read_html(io.StringIO(html), flavor="bs4", **kw)
 
     # 2b-1. 코스피 투자자별 일별 매매동향 (억원) — 개인/외국인/기관계 ...
     START = pd.Timestamp("2015-01-01")
@@ -230,6 +233,18 @@ try:
         "mapi_KPI200":   "https://m.stock.naver.com/api/index/KPI200/price?pageSize=100&page=1",
         "sise_VKOSPI":   "https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1",
         "sise_KPI200":   "https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1",
+        "nhn_investor":  "https://finance.naver.com/sise/investorDealTrendDay.nhn?bizdate=20261016&sosok=01&page=1",
+        "nhn_index_day": "https://finance.naver.com/sise/sise_index_day.nhn?code=KPI200&page=1",
+        "mapi_stock_trend": "https://m.stock.naver.com/api/stock/005930/trend?pageSize=20&page=1",
+        "mapi_etf_trend":   "https://m.stock.naver.com/api/stock/139260/trend?pageSize=20&page=1",
+        "mapi_index_trend": "https://m.stock.naver.com/api/index/KOSPI/trend?pageSize=20&page=1",
+        "mapi_index_price": "https://m.stock.naver.com/api/index/KOSPI/price?pageSize=20&page=1",
+        "mapi_vkospi_basic": "https://m.stock.naver.com/api/index/VKOSPI/basic",
+        "api_index_chart":  "https://api.stock.naver.com/chart/domestic/index/KOSPI/day?startDateTime=20261001&endDateTime=20261016",
+        "api_vkospi_chart": "https://api.stock.naver.com/chart/domestic/index/VKOSPI/day?startDateTime=20261001&endDateTime=20261016",
+        "fchart_VKOSPI2":   "https://fchart.stock.naver.com/sise.nhn?symbol=KOSPI200VOL&timeframe=day&count=100&requestType=0",
+        "investor_total":   "https://finance.naver.com/sise/sise_trans_style.naver",
+        "sise_investor_by_date": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
     }
     for k, url in tries.items():
         try:
@@ -240,6 +255,27 @@ try:
                 open(os.path.join(OUT, "naver", f"try_{k}.txt"), "w", encoding="utf-8").write(txt[:400000])
         except Exception as e:
             fail(f"naver try {k}: {e!r}")
+
+    # 2b-3b. 모바일 API 투자자 동향 전체 수집 (되는 경우)
+    def mapi_trend(kind, code, label, start="2015-01-01"):
+        rows = []
+        for page in range(1, 200):
+            r = get(f"https://m.stock.naver.com/api/{kind}/{code}/trend?pageSize=100&page={page}")
+            js = r.json()
+            if isinstance(js, dict):
+                js = js.get("trendList") or js.get("list") or js.get("data") or []
+            if not js: break
+            rows.extend(js)
+            d = str(js[-1].get("bizdate") or js[-1].get("localTradedAt") or "")[:10].replace("-", "")
+            if d and d < start.replace("-", ""): break
+            time.sleep(0.1)
+        if not rows: fail(f"naver mapi trend {label}: 빈 응답"); return
+        df = pd.DataFrame(rows)
+        df.to_csv(os.path.join(OUT, "naver", f"mapi_trend_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver mapi trend {label}: {len(df)}행 cols={list(df.columns)[:12]}")
+    for kind, code, label in [("stock", "005930", "005930"), ("stock", "000660", "000660"), ("stock", "139260", "139260"), ("index", "KOSPI", "KOSPI")]:
+        try: mapi_trend(kind, code, label)
+        except Exception as e: fail(f"naver mapi trend {label}: {e!r}")
 
     # 2b-4. VKOSPI 일별 페이지 전체 (sise_index_day) — 위 시도가 성공하면 전 기간 수집
     def naver_index_day(code, label, maxpage=700):

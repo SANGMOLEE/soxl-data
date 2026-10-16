@@ -4,3 +4,5 @@ yfinance>=0.2.40
 pykrx
 requests>=2.31
 lxml>=5.0
+html5lib
+beautifulsoup4
