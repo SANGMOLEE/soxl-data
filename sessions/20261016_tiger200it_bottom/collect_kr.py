@@ -188,7 +188,7 @@ try:
         df.to_csv(os.path.join(OUT, "naver", f"investor_{label}.csv"), index=False, encoding="utf-8-sig")
         ok(f"naver investor {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
 
-    for sosok, label in [("01", "KOSPI"), ("02", "KOSDAQ")]:
+    for sosok, label in []:
         try: naver_investor_trend(sosok, label)
         except Exception as e: fail(f"naver investor {label}: {e!r}")
 
@@ -219,7 +219,7 @@ try:
         df.to_csv(os.path.join(OUT, "naver", f"frgn_{code}.csv"), index=False, encoding="utf-8-sig")
         ok(f"naver frgn {code}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
 
-    for code in ["139260", "005930", "000660"]:
+    for code in []:
         try: naver_frgn(code)
         except Exception as e: fail(f"naver frgn {code}: {e!r}")
 
@@ -266,26 +266,74 @@ try:
         except Exception as e:
             fail(f"naver try {k}: {e!r}")
 
-    # 2b-3b. 모바일 API 투자자 동향 전체 수집 (되는 경우)
-    def mapi_trend(kind, code, label, start="2015-01-01"):
-        rows = []
-        for page in range(1, 400):
-            r = get(f"https://m.stock.naver.com/api/{kind}/{code}/trend?pageSize=20&page={page}")
-            js = r.json()
-            if isinstance(js, dict):
-                js = js.get("trendList") or js.get("list") or js.get("data") or []
-            if not js: break
-            rows.extend(js)
-            d = str(js[-1].get("bizdate") or js[-1].get("localTradedAt") or "")[:10].replace("-", "")
-            if d and d < start.replace("-", ""): break
-            time.sleep(0.1)
-        if not rows: fail(f"naver mapi trend {label}: 빈 응답"); return
+    # 2b-3b. 모바일 API 투자자 동향 전체 수집 — page 파라미터가 무시되므로(4차 실행에서 확인) 페이지 방식 탐색
+    def _first_date(js):
+        if isinstance(js, dict): js = js.get("trendList") or js.get("list") or js.get("data") or []
+        return (str(js[0].get("bizdate", ""))[:8], js) if js else ("", [])
+    def mapi_trend(kind, code, label, start="20150101"):
+        base = f"https://m.stock.naver.com/api/{kind}/{code}/trend"
+        d1, js1 = _first_date(get(f"{base}?pageSize=20&page=1").json())
+        if not js1: fail(f"naver mapi trend {label}: 빈 응답"); return
+        last1 = str(js1[-1].get("bizdate", ""))[:8]
+        scheme = None
+        for q in [f"{base}?pageSize=20&page=2", f"{base}?pageSize=20&pageNo=2", f"{base}?pageSize=20&offset=20",
+                  f"{base}?pageSize=20&bizdate={last1}", f"{base}?bizdate={last1}&pageSize=20", f"{base}?pageSize=20&endDate={last1}",
+                  f"{base}?pageSize=20&page=1&bizdate={last1}", f"{base}?pageSize=20&startDate=20250101&endDate={last1}"]:
+            try:
+                d2, js2 = _first_date(get(q).json())
+                note(f"naver trend scheme {label} {q.split('?')[1]} -> first={d2} n={len(js2)}")
+                if js2 and d2 and d2 != d1 and d2 <= last1: scheme = q; break
+            except Exception as e:
+                note(f"naver trend scheme {label} {q.split('?')[1]} -> {e!r}")
+        rows = list(js1)
+        if scheme is None:
+            fail(f"naver mapi trend {label}: 페이지 넘김 방법 못 찾음 — 최근 20일만 저장")
+        else:
+            cur = last1; seen = {str(r.get("bizdate"))[:8] for r in rows}
+            for _ in range(1, 600):
+                if "page=2" in scheme: q = scheme.replace("page=2", f"page={_+1}")
+                elif "pageNo=2" in scheme: q = scheme.replace("pageNo=2", f"pageNo={_+1}")
+                elif "offset=20" in scheme: q = scheme.replace("offset=20", f"offset={20*_}")
+                else: q = scheme.replace(last1, cur)
+                d2, js2 = _first_date(get(q).json())
+                new = [r for r in js2 if str(r.get("bizdate"))[:8] not in seen]
+                if not new: break
+                rows.extend(new); seen.update(str(r.get("bizdate"))[:8] for r in new)
+                cur = min(str(r.get("bizdate"))[:8] for r in new)
+                # 날짜 앵커 방식이면 그 날짜 '이전'으로 가야 하므로 하루 빼서 다시 요청
+                if "page" not in scheme and "offset" not in scheme:
+                    cur = (pd.Timestamp(cur) - pd.Timedelta(days=1)).strftime("%Y%m%d")
+                if cur < start: break
+                time.sleep(0.05)
         df = pd.DataFrame(rows)
         df.to_csv(os.path.join(OUT, "naver", f"mapi_trend_{label}.csv"), index=False, encoding="utf-8-sig")
-        ok(f"naver mapi trend {label}: {len(df)}행 cols={list(df.columns)[:12]}")
-    for kind, code, label in [("stock", "005930", "005930"), ("stock", "000660", "000660"), ("stock", "139260", "139260"), ("index", "KOSPI", "KOSPI")]:
+        ok(f"naver mapi trend {label}: {len(df)}행 {df['bizdate'].min()}~{df['bizdate'].max()} (고유 {df['bizdate'].nunique()})")
+    for kind, code, label in [("stock", "005930", "005930"), ("stock", "000660", "000660"), ("stock", "139260", "139260")]:
         try: mapi_trend(kind, code, label)
         except Exception as e: fail(f"naver mapi trend {label}: {e!r}")
+
+    # 2b-3b'. 코스피 투자자별(개인/외국인/기관) — index trend는 하루치 dict만 주므로 bizdate로 하루씩 (2016-01-01~)
+    try:
+        r = get("https://m.stock.naver.com/api/index/KOSPI/trend?bizdate=20261015"); js = r.json()
+        note(f"naver index trend bizdate test -> {str(js)[:150]}")
+        if isinstance(js, dict) and str(js.get("bizdate", "")).startswith("20261015"):
+            etfp = os.path.join(OUT, "prices", "TIGER200IT.csv")
+            days = pd.read_csv(etfp)["date"].astype(str).str.replace("-", "")
+            days = [d for d in days if d >= "20160101"]
+            rows = []
+            for d in days:
+                try:
+                    js = get(f"https://m.stock.naver.com/api/index/KOSPI/trend?bizdate={d}").json()
+                    if isinstance(js, dict) and js.get("bizdate"): rows.append(js)
+                except Exception: pass
+                time.sleep(0.03)
+            df = pd.DataFrame(rows).drop_duplicates("bizdate")
+            df.to_csv(os.path.join(OUT, "naver", "mapi_trend_KOSPI.csv"), index=False, encoding="utf-8-sig")
+            ok(f"naver index trend KOSPI: {len(df)}행 {df['bizdate'].min()}~{df['bizdate'].max()} cols={list(df.columns)}")
+        else:
+            fail("naver index trend KOSPI: bizdate 방식 불가")
+    except Exception as e:
+        fail(f"naver index trend KOSPI: {e!r}")
 
     # 2b-3c. 모바일 API 지수 일별 시세 전체 (VKOSPI, KPI200)
     def mapi_index_price(code, label, start="2010-01-01"):
@@ -333,7 +381,7 @@ try:
         df.to_csv(os.path.join(OUT, "naver", f"index_{label}.csv"), index=False, encoding="utf-8-sig")
         ok(f"naver index_day {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
 
-    for code, label in [("VKOSPI", "VKOSPI"), ("KPI200", "KOSPI200")]:
+    for code, label in []:
         try: naver_index_day(code, label)
         except Exception as e: fail(f"naver index_day {label}: {e!r}")
 
