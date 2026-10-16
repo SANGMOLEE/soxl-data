@@ -16,5 +16,5 @@ c14 10년물 252일 최고 대비 −25bp 이상 하락,5/7,OOOOxxO,10/11,4/13,F
 c15 모기지 고점이 −63~+21거래일,5/7,OxOxOOO,4/11,4/13,True,True
 c16 기준금리 이후 6개월 인하,0/7,xxxxxxx,3/11,1/13,False,False
 c17 기준금리 직전 6개월 인상,3/7,xxOxOOx,3/11,6/13,False,False
-c18 CPI 상승률 둔화(3개월 전보다 낮음),2/7,xxOxOxx,5/11,4/13,True,True
+c18 CPI 상승률 둔화(3개월 전보다 낮음),2/7,xxOxOxx,5/11,4/13,True,False
 c19 금리 하락 또는 스트레스 급등(c14 또는 c11),6/7,OOOOOxO,11/11,12/13,False,False
