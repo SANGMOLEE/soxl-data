@@ -90,8 +90,8 @@ def load_flows(naver_dir, code):
         f = next((c for c in df.columns if "foreigner" in c.lower() and "pure" in c.lower() and "quant" in c.lower()), None)
         o = next((c for c in df.columns if "organ" in c.lower() and "pure" in c.lower() and "quant" in c.lower()), None)
         if f is None or o is None: return None, f"mapi_trend_{code}: 열 인식 실패 {list(df.columns)}"
-        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", ""), errors="coerce"),
-                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", ""), errors="coerce")}, index=df["date"])
+        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", ""), errors="coerce").values,
+                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", ""), errors="coerce").values}, index=pd.DatetimeIndex(df["date"]))
         return out.sort_index().groupby(level=0).last(), f"mapi_trend_{code}"
     p = os.path.join(naver_dir, f"frgn_{code}.csv")
     if os.path.exists(p):
@@ -100,8 +100,8 @@ def load_flows(naver_dir, code):
         f = next((c for c in df.columns if "외국인" in c and "순매매" in c), None)
         o = next((c for c in df.columns if "기관" in c and "순매매" in c), None)
         if f is None or o is None: return None, f"frgn_{code}: 열 인식 실패 {list(df.columns)}"
-        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce"),
-                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce")}, index=df["date"])
+        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce").values,
+                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce").values}, index=pd.DatetimeIndex(df["date"]))
         return out.sort_index().groupby(level=0).last(), f"frgn_{code}"
     return None, f"{code}: 수급 자료 없음"
 
@@ -118,7 +118,7 @@ def load_market_flows(naver_dir):
         df = pd.read_csv(p)
         dcol = "bizdate" if "bizdate" in df.columns else df.columns[0]
         df["date"] = pd.to_datetime(df[dcol].astype(str).str[:10].str.replace("-", ""), format="%Y%m%d")
-        f = next((c for c in df.columns if "foreigner" in c.lower() and "pure" in c.lower()), None)
+        f = next((c for c in df.columns if c.lower() in ("foreignvalue",) or ("foreigner" in c.lower() and "pure" in c.lower())), None)
         if f is None: return None, f"mapi_trend_KOSPI: 열 인식 실패 {list(df.columns)}"
         return pd.to_numeric(df.set_index("date")[f].astype(str).str.replace(",", ""), errors="coerce").sort_index().groupby(level=0).last(), "mapi_trend_KOSPI"
     return None, "코스피 투자자별 자료 없음"

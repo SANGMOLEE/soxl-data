@@ -1,0 +1,1058 @@
+# TIGER 200 IT 단기저점 스코어 — 코드 묶음 (2026-10-16)
+# 풀기: 위 docstring의 두 줄 파이썬을 unpack.py로 저장해 실행
+
+##### FILE: sessions/20261016_tiger200it_bottom/PREREGISTRATION.md #####
+# 사전 고정 — TIGER 200 IT 단기저점 스코어 (규칙을 결과보다 먼저 적음)
+
+| 항목 | 내용 |
+|---|---|
+| 고정 시각 | 2026-10-16 20:10 UTC (한국시간 10/17 05:10). **백테스트 결과를 보기 전**에 작성·커밋 |
+| 대상 | TIGER 200 IT ETF (139260, 1배). 삼성전자·SK하이닉스 비중이 절반 이상 |
+| 목표 | **이번 주(2026-10-12~16) 급락의 단기 저점**을 맞추는 단일 점수. 사이클 최저점(NAIL R9)이 아니라 수 거래일~수 주 안의 반등 저점 |
+| 구조 | NAIL·SOXL 연구와 같다. **표시점수 = 100 − 조건점수, 0에 가까울수록 저점**. 블록별 가장 강한 구간 하나만 반영 |
+| 성격 | 관찰 연구 + 첫 번째 규칙 제안(**v1**). 과거 성과는 전부 인샘플 |
+
+## 1. 자료와 시점
+
+| 자료 | 원천 | 시점 규칙 (한국 날짜 t의 판정에 쓸 수 있는 것) |
+|---|---|---|
+| TIGER 200 IT 일봉 | Yahoo 139260.KS (가격 종가) | 당일 종가 |
+| 삼성전자·SK하이닉스 일봉 | Yahoo 005930.KS, 000660.KS | 당일 종가 |
+| 코스피 지수 | Yahoo ^KS11 | 당일 |
+| 투자자별 순매수(코스피, 억원) | 네이버 금융 investorDealTrendDay | 당일 |
+| 종목별 외국인·기관 순매매(주) | 네이버 금융 item/frgn | 당일 |
+| VKOSPI | 네이버 금융 sise_index_day (못 받으면 코스피 20일 실현변동성으로 대체, 대체 사실 명시) | 당일 |
+| VIX, SOX | Yahoo ^VIX, ^SOX | **미국 날짜 < t** 인 마지막 종가 (한국 아침에 아는 값) |
+| CNN 공포탐욕 | soxl-data `data/sentiment/fear_greed.csv` | 날짜 < t 인 마지막 값 |
+| 원달러 | Yahoo KRW=X | 당일 |
+
+수급·VKOSPI가 없는 날(2015년 이전, 수집 실패)은 해당 항목 0점으로 두고 경고를 적는다.
+
+대체 규칙(2026-10-16 20:20 UTC, 네이버 시장 투자자별 페이지가 410으로 막힌 것을 확인한 뒤·결과를 보기 전에 추가): 코스피 전체 외국인 순매수를 못 받으면 V2는 **139260 ETF 자체의 (외국인+기관) 순매매 금액(주수×종가) 5일 누적**의 250거래일 백분위로 대체한다. 대체 사실을 보고서에 적는다.
+
+## 2. 점수 (조건점수 0~100)
+
+| 블록 | 항목 | 계산 | 조건 → 점수 |
+|---|---|---|---|
+| **P 가격 손상 (40)** | P1 20일 낙폭 | 종가 / 20거래일(당일 포함) 최고 종가 − 1 | ≤ −6/−10/−15/−20% → 4/8/12/15 |
+| | P2 RSI14 | 일봉 Wilder RSI14 | ≤ 40/35/30/25 → 3/6/9/12 |
+| | P3 20일선 이격 | 종가 / 20일 단순이평 − 1 | ≤ −5/−8/−12% → 3/5/7 |
+| | P4 급락 속도 | 5거래일 수익률 | ≤ −6/−10/−15% → 2/4/6 |
+| **V 거래량·수급 (20)** | V1 거래량 클라이맥스 | ETF 거래량 / 직전 20일 평균 | ≥ 1.5/2.0/3.0 → 2/4/6 |
+| | V2 외국인 투매(시장) | 코스피 외국인 순매수 5일 누적의 250거래일 백분위 | ≤ 20/10/5 → 2/4/7 |
+| | V3 외국인+기관 투매(핵심종목) | 삼성전자+SK하이닉스 (외국인+기관) 순매매 금액(주수×종가) 5일 누적의 250거래일 백분위 | ≤ 20/10/5 → 2/4/7 |
+| **S 공포·스트레스 (25)** | S1 VKOSPI | VKOSPI 종가 | ≥ 22/27/33/40 → 2/4/6/8 |
+| | S2 VIX | 20거래일 최고 종가(당일 포함) | ≥ 20/25/33/45 → 2/4/6/8 |
+| | S3 공포탐욕 | CNN Fear & Greed | ≤ 35/25/15 → 2/4/6 |
+| | S4 원달러 | 20거래일 변화율 | ≥ +2/+3.5/+5% → 1/2/3 |
+| **G 글로벌 반도체 (15)** | G1 SOX 낙폭 | SOX 종가 / 20거래일 최고 − 1 | ≤ −6/−10/−15% → 3/6/9 |
+| | G2 SOX RSI14 | 일봉 Wilder RSI14 | ≤ 40/35/30 → 2/4/6 |
+
+VKOSPI 대체 규칙: 코스피 일간 로그수익률 20일 표준편차 × √252 ≥ 20/25/33/40% → 2/4/6/8.
+
+## 3. 매수 규칙 v1 (결과를 보기 전의 제안)
+
+| 차수 | 조건 (신호일 종가 확인 → 다음 거래일 시가 체결) | 예산 |
+|---|---|---:|
+| 1차 | 표시점수 ≤ 60 | 20% |
+| 2차 | 표시점수 ≤ 50 AND 종가 ≤ 직전 체결가 × 0.95 AND 직전 체결 후 2거래일 이상 | 30% |
+| 3차 | 표시점수 ≤ 40 AND 종가 ≤ 직전 체결가 × 0.95 AND 직전 체결 후 2거래일 이상 | 50% |
+| 재무장 | 20일 낙폭이 −3%보다 얕아지면(20일 고점 근처 복귀) 차수 초기화 | |
+
+기준선 60/50/40은 결과를 본 뒤 **평탄한 구간의 중앙**으로 바꿀 수 있다. 바꾸면 바꾼 사실과 이유를 보고서에 적는다.
+
+## 4. 평가 방법 (고정)
+
+**단기 저점의 정의.** 날짜 t가 단기 저점이려면 ① 종가가 t−10 ~ t+10 거래일 중 최저 ② t+1 ~ t+20 거래일 최고 종가가 t 종가의 1.06배 이상 ③ t 종가가 t−30 ~ t 최고 종가의 0.93배 이하(하락 뒤의 저점일 것). 2011-04~2026-09 전 기간에서 추출한다.
+
+**지표.**
+1. 단기 저점마다 저점일 표시점수, 저점 ±3일 최저 표시점수, 블록별 구성.
+2. 기준선 X ∈ {70, 65, 60, 55, 50, 45, 40}마다 **에피소드**(X 이하로 처음 내려간 날; 직전 20거래일 안에 같은 신호가 없을 때) 기준으로: 신호 수, 신호일 다음 시가 체결 뒤 5/10/20거래일 수익률(중앙·평균·승률), 20거래일 안 최저 종가까지의 추가 하락(중앙·최악), 신호 ±5거래일 안에 단기 저점이 있는 비율, 단기 저점까지 거래일 수 중앙.
+3. 같은 지표를 전체 거래일(기준선 없음)과 비교한다.
+4. 블록 기여: P만, P+S, P+S+G, 전체(V 포함, 2015년 이후만)로 2번을 반복한다.
+5. 안정성: 2011~2018 / 2019~2026 두 구간으로 나눠 2번을 따로 적는다.
+6. 표본이 15개 미만인 표는 사례를 하나씩 나열한다. 신뢰구간은 클로퍼-피어슨 95%.
+
+**결론 형식.** 10/16 종가의 표시점수와 구성, 과거 단기 저점의 점수 분포 대비 위치, 다음 거래일에 기준선을 넘기 위한 조건(블록별 경계값), 그리고 "저점 근처일 가능성이 높다 / 판단 불가 / 아직 아니다" 중 하나.
+
+##### FILE: sessions/20261016_tiger200it_bottom/collect_kr.py #####
+# -*- coding: utf-8 -*-
+"""TIGER 200 IT 단기저점 연구 - 한국 시장 데이터 수집 (GitHub Actions 러너에서 실행)
+
+출력: sessions/20261016_tiger200it_bottom/data/
+  prices/{이름}.csv          date,open,high,low,close,adj_close,volume,source
+  krx/etf_139260.csv         NAV,시가,고가,저가,종가,거래량,거래대금,기초지수
+  krx/flow_{이름}.csv        투자자별 순매수 거래대금 (기관합계,기타법인,개인,외국인합계,전체)
+  krx/index_{이름}.csv       KRX 지수 OHLCV
+  krx/short_139260.csv       공매도 거래량
+  collect_log.json           성공/실패 기록
+"""
+import os, sys, json, datetime, traceback
+import pandas as pd
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+OUT  = os.path.join(BASE, "data")
+os.makedirs(os.path.join(OUT, "prices"), exist_ok=True)
+os.makedirs(os.path.join(OUT, "krx"), exist_ok=True)
+
+LOG = {"ok": [], "failed": [], "notes": [], "run_at_utc": datetime.datetime.utcnow().isoformat()}
+
+def ok(msg):   LOG["ok"].append(msg);     print("[OK]  ", msg)
+def fail(msg): LOG["failed"].append(msg); print("[FAIL]", msg)
+def note(msg): LOG["notes"].append(msg);  print("[NOTE]", msg)
+
+# ─────────────────────────────── 1. Yahoo (yfinance)
+YF = {
+    "TIGER200IT": "139260.KS",   # 매매 대상
+    "KOSPI":      "^KS11",
+    "KOSPI200":   "^KS200",
+    "KOSDAQ":     "^KQ11",
+    "SAMSUNG":    "005930.KS",
+    "HYNIX":      "000660.KS",
+    "KODEX_SEMI": "091160.KS",
+    "USDKRW":     "KRW=X",
+    "SOX":        "^SOX",
+    "VIX":        "^VIX",
+    "SOXX":       "SOXX",
+    "EWY":        "EWY",         # 미국상장 한국 ETF (야간 선행지표)
+}
+try:
+    import yfinance as yf
+    for name, sym in YF.items():
+        try:
+            df = yf.Ticker(sym).history(period="max", auto_adjust=False)
+            if df is None or len(df) == 0:
+                fail(f"yahoo {name} ({sym}): 빈 응답"); continue
+            df = df.reset_index()
+            df.columns = [str(c).lower().replace(" ", "_") for c in df.columns]
+            df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None).dt.strftime("%Y-%m-%d")
+            keep = ["date", "open", "high", "low", "close", "adj_close", "volume"]
+            for k in keep:
+                if k not in df.columns: df[k] = None
+            df = df[keep].copy()
+            df["source"] = "yahoo"
+            df = df[df["close"].notna()]
+            df.to_csv(os.path.join(OUT, "prices", f"{name}.csv"), index=False)
+            ok(f"yahoo {name} ({sym}): {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]}")
+        except Exception as e:
+            fail(f"yahoo {name} ({sym}): {e!r}")
+except Exception as e:
+    fail(f"yfinance import: {e!r}")
+
+# ─────────────────────────────── 2. KRX (pykrx)
+TODAY = datetime.date.today().strftime("%Y%m%d")
+try:
+    from pykrx import stock
+
+    def save(df, path, label):
+        if df is None or len(df) == 0:
+            fail(f"{label}: 빈 응답"); return
+        df = df.copy()
+        df.index.name = "date"
+        df.to_csv(path, encoding="utf-8-sig")
+        ok(f"{label}: {len(df)}행 {df.index[0]}~{df.index[-1]}")
+
+    # 2-1. ETF OHLCV + NAV
+    try:
+        df = stock.get_etf_ohlcv_by_date("20110101", TODAY, "139260")
+        save(df, os.path.join(OUT, "krx", "etf_139260.csv"), "krx etf_139260")
+    except Exception as e:
+        fail(f"krx etf_139260: {e!r}")
+
+    # 2-2. 투자자별 순매수 (거래대금) — ETF, 코스피 전체, 삼성전자, 하이닉스
+    for label, tk in {"139260": "139260", "KOSPI": "KOSPI", "005930": "005930", "000660": "000660"}.items():
+        try:
+            df = stock.get_market_trading_value_by_date("20150101", TODAY, tk)
+            save(df, os.path.join(OUT, "krx", f"flow_{label}.csv"), f"krx flow_{label}")
+        except Exception as e:
+            fail(f"krx flow_{label}: {e!r}")
+        try:
+            df = stock.get_market_trading_volume_by_date("20150101", TODAY, tk)
+            save(df, os.path.join(OUT, "krx", f"flowvol_{label}.csv"), f"krx flowvol_{label}")
+        except Exception as e:
+            fail(f"krx flowvol_{label}: {e!r}")
+
+    # 2-3. 지수 — 이름에 '정보기술' / '변동성' / '코스피 200' 포함되는 것 전부
+    found = {}
+    for mkt in ["KOSPI", "KOSDAQ", "KRX", "테마"]:
+        try:
+            for t in stock.get_index_ticker_list(market=mkt):
+                try:
+                    nm = stock.get_index_ticker_name(t)
+                except Exception:
+                    nm = "?"
+                found[t] = f"{mkt}:{nm}"
+        except Exception as e:
+            fail(f"krx index list {mkt}: {e!r}")
+    json.dump(found, open(os.path.join(OUT, "krx", "index_tickers.json"), "w"), ensure_ascii=False, indent=1)
+    note(f"krx 지수 목록 {len(found)}개 저장")
+    want = [t for t, nm in found.items()
+            if any(k in nm for k in ["정보기술", "변동성", "VKOSPI", "V-KOSPI"]) or nm.endswith(":코스피 200") or nm.endswith(":코스피")]
+    for t in want:
+        try:
+            df = stock.get_index_ohlcv("20100101", TODAY, t)
+            safe = found[t].split(":", 1)[1].replace(" ", "_").replace("/", "_")
+            save(df, os.path.join(OUT, "krx", f"index_{t}_{safe}.csv"), f"krx index {found[t]}")
+        except Exception as e:
+            fail(f"krx index {found[t]}: {e!r}")
+
+    # 2-4. 공매도
+    try:
+        df = stock.get_shorting_volume_by_date("20180101", TODAY, "139260")
+        save(df, os.path.join(OUT, "krx", "short_139260.csv"), "krx short_139260")
+    except Exception as e:
+        fail(f"krx short_139260: {e!r}")
+    try:
+        df = stock.get_shorting_volume_by_date("20180101", TODAY, "005930")
+        save(df, os.path.join(OUT, "krx", "short_005930.csv"), "krx short_005930")
+    except Exception as e:
+        fail(f"krx short_005930: {e!r}")
+
+    # 2-5. ETF 구성종목 (현재)
+    try:
+        df = stock.get_etf_portfolio_deposit_file("139260")
+        save(df, os.path.join(OUT, "krx", "pdf_139260.csv"), "krx pdf_139260")
+    except Exception as e:
+        fail(f"krx pdf_139260: {e!r}")
+
+except Exception as e:
+    fail(f"pykrx import: {e!r}")
+    traceback.print_exc()
+
+# ─────────────────────────────── 2b. 네이버 금융 (KRX가 해외 IP를 막을 때의 대안)
+import time, io, re
+try:
+    import requests
+    NH = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+          "Referer": "https://finance.naver.com/"}
+    os.makedirs(os.path.join(OUT, "naver"), exist_ok=True)
+    SESSION = requests.Session(); SESSION.headers.update(NH)
+
+    def get(url, **kw):
+        r = SESSION.get(url, timeout=30, **kw); r.raise_for_status(); return r
+
+    def read_tables(html, **kw):
+        try:
+            return pd.read_html(io.StringIO(html), flavor="lxml", **kw)
+        except Exception:
+            return pd.read_html(io.StringIO(html), flavor="bs4", **kw)
+
+    # 2b-1. 코스피 투자자별 일별 매매동향 (억원) — 개인/외국인/기관계 ...
+    START = pd.Timestamp("2015-01-01")
+    def naver_investor_trend(sosok, label):
+        rows = []
+        bizdate = datetime.date.today().strftime("%Y%m%d")
+        for page in range(1, 400):
+            url = f"https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={bizdate}&sosok={sosok}&page={page}"
+            r = get(url); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="날짜")
+            if not tabs: break
+            t = tabs[0]
+            if isinstance(t.columns, pd.MultiIndex):
+                t.columns = ["_".join([str(c) for c in col if not str(c).startswith("Unnamed")]).strip("_") for col in t.columns]
+            t = t.dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{2}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%y.%m.%d")
+            if last < START: break
+            time.sleep(0.15)
+        if not rows: fail(f"naver investor {label}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df = df[pd.to_datetime(df["date"]) >= START]
+        df.to_csv(os.path.join(OUT, "naver", f"investor_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver investor {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for sosok, label in []:
+        try: naver_investor_trend(sosok, label)
+        except Exception as e: fail(f"naver investor {label}: {e!r}")
+
+    # 2b-2. 종목별 외국인·기관 순매매 (주수) — 139260, 005930, 000660
+    def naver_frgn(code):
+        rows = []
+        for page in range(1, 300):
+            r = get(f"https://finance.naver.com/item/frgn.naver?code={code}&page={page}"); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="기관")
+            cand = [t for t in tabs if t.shape[1] >= 8]
+            if not cand: break
+            t = cand[-1]
+            if isinstance(t.columns, pd.MultiIndex):
+                t.columns = ["_".join([str(c) for c in col if not str(c).startswith("Unnamed")]).strip("_") for col in t.columns]
+            t = t.dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%Y.%m.%d")
+            if last < START: break
+            time.sleep(0.15)
+        if not rows: fail(f"naver frgn {code}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%Y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df = df[pd.to_datetime(df["date"]) >= START]
+        df.to_csv(os.path.join(OUT, "naver", f"frgn_{code}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver frgn {code}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for code in []:
+        try: naver_frgn(code)
+        except Exception as e: fail(f"naver frgn {code}: {e!r}")
+
+    # 2b-3. VKOSPI / 코스피200 / 업종지수 — 여러 경로 시도, 되는 것만 저장
+    tries = {
+        "fchart_VKOSPI": "https://fchart.stock.naver.com/sise.nhn?symbol=VKOSPI&timeframe=day&count=4000&requestType=0",
+        "fchart_KPI200": "https://fchart.stock.naver.com/sise.nhn?symbol=KPI200&timeframe=day&count=4000&requestType=0",
+        "fchart_KOSPI":  "https://fchart.stock.naver.com/sise.nhn?symbol=KOSPI&timeframe=day&count=4000&requestType=0",
+        "fchart_139260": "https://fchart.stock.naver.com/sise.nhn?symbol=139260&timeframe=day&count=4000&requestType=0",
+        "mapi_VKOSPI":   "https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=100&page=1",
+        "mapi_KPI200":   "https://m.stock.naver.com/api/index/KPI200/price?pageSize=100&page=1",
+        "sise_VKOSPI":   "https://finance.naver.com/sise/sise_index_day.naver?code=VKOSPI&page=1",
+        "sise_KPI200":   "https://finance.naver.com/sise/sise_index_day.naver?code=KPI200&page=1",
+        "nhn_investor":  "https://finance.naver.com/sise/investorDealTrendDay.nhn?bizdate=20261016&sosok=01&page=1",
+        "nhn_index_day": "https://finance.naver.com/sise/sise_index_day.nhn?code=KPI200&page=1",
+        "mapi_stock_trend": "https://m.stock.naver.com/api/stock/005930/trend?pageSize=20&page=1",
+        "mapi_etf_trend":   "https://m.stock.naver.com/api/stock/139260/trend?pageSize=20&page=1",
+        "mapi_index_trend": "https://m.stock.naver.com/api/index/KOSPI/trend?pageSize=20&page=1",
+        "mapi_index_price": "https://m.stock.naver.com/api/index/KOSPI/price?pageSize=20&page=1",
+        "mapi_vkospi_basic": "https://m.stock.naver.com/api/index/VKOSPI/basic",
+        "api_index_chart":  "https://api.stock.naver.com/chart/domestic/index/KOSPI/day?startDateTime=20261001&endDateTime=20261016",
+        "api_vkospi_chart": "https://api.stock.naver.com/chart/domestic/index/VKOSPI/day?startDateTime=20261001&endDateTime=20261016",
+        "fchart_VKOSPI2":   "https://fchart.stock.naver.com/sise.nhn?symbol=KOSPI200VOL&timeframe=day&count=100&requestType=0",
+        "investor_total":   "https://finance.naver.com/sise/sise_trans_style.naver",
+        "sise_investor_by_date": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+        "mapi_vkospi_price20": "https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=20&page=1",
+        "mapi_kpi200_price20": "https://m.stock.naver.com/api/index/KPI200/price?pageSize=20&page=1",
+        "mapi_idx_trend_list": "https://m.stock.naver.com/api/index/KOSPI/trend/list?pageSize=20&page=1",
+        "mapi_idx_investor": "https://m.stock.naver.com/api/index/KOSPI/investor?pageSize=20&page=1",
+        "mapi_idx_investorTrend": "https://m.stock.naver.com/api/index/KOSPI/investorTrend?pageSize=20&page=1",
+        "mapi_idx_trendDaily": "https://m.stock.naver.com/api/index/KOSPI/trendDaily?pageSize=20&page=1",
+        "mapi_idx_dealTrend": "https://m.stock.naver.com/api/index/KOSPI/investorDealTrend?pageSize=20&page=1",
+        "api_idx_investor": "https://api.stock.naver.com/index/KOSPI/investor?pageSize=20&page=1",
+        "mapi_idx_total": "https://m.stock.naver.com/api/index/KOSPI/total",
+        "sise_deal_rank": "https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=01",
+    }
+    for k, url in tries.items():
+        try:
+            r = get(url)
+            txt = r.text
+            note(f"naver try {k}: HTTP {r.status_code}, {len(txt)} bytes, head={txt[:120]!r}")
+            if r.ok and len(txt) > 200:
+                open(os.path.join(OUT, "naver", f"try_{k}.txt"), "w", encoding="utf-8").write(txt[:400000])
+        except Exception as e:
+            fail(f"naver try {k}: {e!r}")
+
+    # 2b-3b. 모바일 API 투자자 동향 전체 수집 — page 파라미터가 무시되므로(4차 실행에서 확인) 페이지 방식 탐색
+    def _first_date(js):
+        if isinstance(js, dict): js = js.get("trendList") or js.get("list") or js.get("data") or []
+        return (str(js[0].get("bizdate", ""))[:8], js) if js else ("", [])
+    def mapi_trend(kind, code, label, start="20150101"):
+        base = f"https://m.stock.naver.com/api/{kind}/{code}/trend"
+        d1, js1 = _first_date(get(f"{base}?pageSize=20&page=1").json())
+        if not js1: fail(f"naver mapi trend {label}: 빈 응답"); return
+        last1 = str(js1[-1].get("bizdate", ""))[:8]
+        scheme = None
+        for q in [f"{base}?pageSize=20&page=2", f"{base}?pageSize=20&pageNo=2", f"{base}?pageSize=20&offset=20",
+                  f"{base}?pageSize=20&bizdate={last1}", f"{base}?bizdate={last1}&pageSize=20", f"{base}?pageSize=20&endDate={last1}",
+                  f"{base}?pageSize=20&page=1&bizdate={last1}", f"{base}?pageSize=20&startDate=20250101&endDate={last1}"]:
+            try:
+                d2, js2 = _first_date(get(q).json())
+                note(f"naver trend scheme {label} {q.split('?')[1]} -> first={d2} n={len(js2)}")
+                if js2 and d2 and d2 != d1 and d2 <= last1: scheme = q; break
+            except Exception as e:
+                note(f"naver trend scheme {label} {q.split('?')[1]} -> {e!r}")
+        rows = list(js1)
+        if scheme is None:
+            fail(f"naver mapi trend {label}: 페이지 넘김 방법 못 찾음 — 최근 20일만 저장")
+        else:
+            cur = last1; seen = {str(r.get("bizdate"))[:8] for r in rows}
+            for _ in range(1, 600):
+                if "page=2" in scheme: q = scheme.replace("page=2", f"page={_+1}")
+                elif "pageNo=2" in scheme: q = scheme.replace("pageNo=2", f"pageNo={_+1}")
+                elif "offset=20" in scheme: q = scheme.replace("offset=20", f"offset={20*_}")
+                else: q = scheme.replace(last1, cur)
+                d2, js2 = _first_date(get(q).json())
+                new = [r for r in js2 if str(r.get("bizdate"))[:8] not in seen]
+                if not new: break
+                rows.extend(new); seen.update(str(r.get("bizdate"))[:8] for r in new)
+                cur = min(str(r.get("bizdate"))[:8] for r in new)
+                # 날짜 앵커 방식이면 그 날짜 '이전'으로 가야 하므로 하루 빼서 다시 요청
+                if "page" not in scheme and "offset" not in scheme:
+                    cur = (pd.Timestamp(cur) - pd.Timedelta(days=1)).strftime("%Y%m%d")
+                if cur < start: break
+                time.sleep(0.05)
+        df = pd.DataFrame(rows)
+        df.to_csv(os.path.join(OUT, "naver", f"mapi_trend_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver mapi trend {label}: {len(df)}행 {df['bizdate'].min()}~{df['bizdate'].max()} (고유 {df['bizdate'].nunique()})")
+    for kind, code, label in [("stock", "005930", "005930"), ("stock", "000660", "000660"), ("stock", "139260", "139260")]:
+        try: mapi_trend(kind, code, label)
+        except Exception as e: fail(f"naver mapi trend {label}: {e!r}")
+
+    # 2b-3b'. 코스피 투자자별(개인/외국인/기관) — index trend는 하루치 dict만 주므로 bizdate로 하루씩 (2016-01-01~)
+    try:
+        r = get("https://m.stock.naver.com/api/index/KOSPI/trend?bizdate=20261015"); js = r.json()
+        note(f"naver index trend bizdate test -> {str(js)[:150]}")
+        if isinstance(js, dict) and str(js.get("bizdate", "")).startswith("20261015"):
+            etfp = os.path.join(OUT, "prices", "TIGER200IT.csv")
+            days = pd.read_csv(etfp)["date"].astype(str).str.replace("-", "")
+            days = [d for d in days if d >= "20160101"]
+            rows = []
+            for d in days:
+                try:
+                    js = get(f"https://m.stock.naver.com/api/index/KOSPI/trend?bizdate={d}").json()
+                    if isinstance(js, dict) and js.get("bizdate"): rows.append(js)
+                except Exception: pass
+                time.sleep(0.03)
+            df = pd.DataFrame(rows).drop_duplicates("bizdate")
+            df.to_csv(os.path.join(OUT, "naver", "mapi_trend_KOSPI.csv"), index=False, encoding="utf-8-sig")
+            ok(f"naver index trend KOSPI: {len(df)}행 {df['bizdate'].min()}~{df['bizdate'].max()} cols={list(df.columns)}")
+        else:
+            fail("naver index trend KOSPI: bizdate 방식 불가")
+    except Exception as e:
+        fail(f"naver index trend KOSPI: {e!r}")
+
+    # 2b-3c. 모바일 API 지수 일별 시세 전체 (VKOSPI, KPI200)
+    def mapi_index_price(code, label, start="2010-01-01"):
+        rows = []
+        for page in range(1, 500):
+            r = get(f"https://m.stock.naver.com/api/index/{code}/price?pageSize=20&page={page}")
+            js = r.json()
+            if not isinstance(js, list) or not js: break
+            rows.extend(js)
+            d = str(js[-1].get("localTradedAt", ""))[:10]
+            if d and d < start: break
+            time.sleep(0.08)
+        if not rows: fail(f"naver mapi price {label}: 빈 응답"); return
+        df = pd.DataFrame(rows)
+        df["date"] = pd.to_datetime(df["localTradedAt"].astype(str).str[:10])
+        for ccol in ["closePrice", "openPrice", "highPrice", "lowPrice"]:
+            if ccol in df.columns: df[ccol] = pd.to_numeric(df[ccol].astype(str).str.replace(",", ""), errors="coerce")
+        df = df.drop_duplicates("date").sort_values("date")
+        df[["date", "openPrice", "highPrice", "lowPrice", "closePrice"]].rename(columns={"openPrice": "open", "highPrice": "high", "lowPrice": "low", "closePrice": "close"}).to_csv(
+            os.path.join(OUT, "naver", f"index_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver mapi price {label}: {len(df)}행 {df['date'].iloc[0].date()}~{df['date'].iloc[-1].date()}")
+    for code, label in [("VKOSPI", "VKOSPI"), ("KPI200", "KOSPI200")]:
+        try: mapi_index_price(code, label)
+        except Exception as e: fail(f"naver mapi price {label}: {e!r}")
+
+    # 2b-4. VKOSPI 일별 페이지 전체 (sise_index_day) — 위 시도가 성공하면 전 기간 수집
+    def naver_index_day(code, label, maxpage=700):
+        rows = []
+        for page in range(1, maxpage):
+            r = get(f"https://finance.naver.com/sise/sise_index_day.naver?code={code}&page={page}"); r.encoding = "euc-kr"
+            tabs = read_tables(r.text, match="날짜")
+            if not tabs: break
+            t = tabs[0].dropna(how="all")
+            t = t[t.iloc[:, 0].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
+            if len(t) == 0: break
+            rows.append(t)
+            last = pd.to_datetime(t.iloc[-1, 0], format="%Y.%m.%d")
+            if last < pd.Timestamp("2010-01-01"): break
+            time.sleep(0.12)
+        if not rows: fail(f"naver index_day {label}: 빈 응답"); return
+        df = pd.concat(rows, ignore_index=True)
+        df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"], format="%Y.%m.%d").dt.strftime("%Y-%m-%d")
+        df = df.drop_duplicates("date").sort_values("date")
+        df.to_csv(os.path.join(OUT, "naver", f"index_{label}.csv"), index=False, encoding="utf-8-sig")
+        ok(f"naver index_day {label}: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} cols={list(df.columns)}")
+
+    for code, label in []:
+        try: naver_index_day(code, label)
+        except Exception as e: fail(f"naver index_day {label}: {e!r}")
+
+except Exception as e:
+    fail(f"naver block: {e!r}")
+    traceback.print_exc()
+
+# ─────────────────────────────── 3. VKOSPI 직접 시도 (KRX 통계 API)
+try:
+    import requests
+    url = "http://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+    hdr = {"User-Agent": "Mozilla/5.0", "Referer": "http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201030108"}
+    # 파생상품 지수(VKOSPI) 시세 추이 bld. 실패해도 무방 — 로그만 남김
+    for bld, idx in [("dbms/MDC/STAT/standard/MDCSTAT01201", "1"),]:
+        payload = {"bld": bld, "locale": "ko_KR", "idxIndMidclssCd": "01", "indIdx": idx, "indIdx2": "001",
+                   "strtDd": "20100101", "endDd": TODAY, "share": "1", "money": "1", "csvxls_isNo": "false"}
+        r = requests.post(url, data=payload, headers=hdr, timeout=60)
+        note(f"krx raw {bld}: HTTP {r.status_code}, {len(r.text)} bytes")
+        if r.ok and r.text.strip().startswith("{"):
+            json.dump(r.json(), open(os.path.join(OUT, "krx", f"raw_{bld.split('/')[-1]}.json"), "w"), ensure_ascii=False)
+except Exception as e:
+    fail(f"krx raw VKOSPI: {e!r}")
+
+json.dump(LOG, open(os.path.join(OUT, "collect_log.json"), "w"), ensure_ascii=False, indent=1)
+print(json.dumps({"ok": len(LOG["ok"]), "failed": len(LOG["failed"])}))
+
+##### FILE: sessions/20261016_tiger200it_bottom/requirements.txt #####
+pandas>=2.0
+numpy
+yfinance>=0.2.40
+pykrx
+requests>=2.31
+lxml>=5.0
+html5lib
+beautifulsoup4
+
+##### FILE: sessions/20261016_tiger200it_bottom/engine/tiger_it_short_bottom.py #####
+# -*- coding: utf-8 -*-
+"""TIGER 200 IT (139260) 단기저점 스코어 엔진 v1 (2026-10-16 사전 고정 규칙)
+
+표시점수 = 100 − 조건점수. 0에 가까울수록 단기 저점.
+실행: python3 -I tiger_it_short_bottom.py --session <세션 폴더> --repo <soxl-data 루트> [--out <출력 폴더>]
+출력: daily.csv (일별 블록·점수), status.json, LATEST.md
+"""
+import os, sys, json, argparse, glob, io
+import numpy as np
+import pandas as pd
+
+# ───────────────────────────── 규칙 (PREREGISTRATION.md §2)
+P1_CUTS, P1_PTS = (-0.06, -0.10, -0.15, -0.20), (4, 8, 12, 15)
+P2_CUTS, P2_PTS = (40, 35, 30, 25), (3, 6, 9, 12)
+P3_CUTS, P3_PTS = (-0.05, -0.08, -0.12), (3, 5, 7)
+P4_CUTS, P4_PTS = (-0.06, -0.10, -0.15), (2, 4, 6)
+V1_CUTS, V1_PTS = (1.5, 2.0, 3.0), (2, 4, 6)
+V2_CUTS, V2_PTS = (20, 10, 5), (2, 4, 7)
+V3_CUTS, V3_PTS = (20, 10, 5), (2, 4, 7)
+S1_CUTS, S1_PTS = (22, 27, 33, 40), (2, 4, 6, 8)      # VKOSPI (대체: 실현변동성 % 같은 경계)
+S2_CUTS, S2_PTS = (20, 25, 33, 45), (2, 4, 6, 8)
+S3_CUTS, S3_PTS = (35, 25, 15), (2, 4, 6)
+S4_CUTS, S4_PTS = (0.02, 0.035, 0.05), (1, 2, 3)
+G1_CUTS, G1_PTS = (-0.06, -0.10, -0.15), (3, 6, 9)
+G2_CUTS, G2_PTS = (40, 35, 30), (2, 4, 6)
+BUY_RULE = {"t1": 60, "t2": 50, "t3": 40, "w": (0.2, 0.3, 0.5), "gap": 0.95, "min_days": 2, "rearm_dd": -0.03}
+
+# ───────────────────────────── 공통 도구 (NAIL 엔진과 같은 꼴)
+def bands_le(x, cuts, pts):
+    x = np.asarray(x, float); out = np.zeros(len(x))
+    for c, p in zip(cuts, pts): out = np.where((x <= c) & (p > out), p, out)
+    return np.where(np.isnan(x), 0.0, out)
+
+def bands_ge(x, cuts, pts):
+    x = np.asarray(x, float); out = np.zeros(len(x))
+    for c, p in zip(cuts, pts): out = np.where((x >= c) & (p > out), p, out)
+    return np.where(np.isnan(x), 0.0, out)
+
+def wilder_rsi(x, n=14):
+    d = x.diff().values; up = np.clip(d, 0, None); dn = np.clip(-d, 0, None)
+    out = np.full(len(x), np.nan)
+    if len(x) <= n: return pd.Series(out, index=x.index)
+    au = np.nanmean(up[1:n + 1]); ad = np.nanmean(dn[1:n + 1])
+    out[n] = 100 - 100 / (1 + au / ad) if ad > 0 else 100.0
+    for i in range(n + 1, len(x)):
+        au = (au * (n - 1) + up[i]) / n; ad = (ad * (n - 1) + dn[i]) / n
+        out[i] = 100 - 100 / (1 + au / ad) if ad > 0 else 100.0
+    return pd.Series(out, index=x.index)
+
+def asof_strict(series, tdays):
+    """날짜 < t 인 마지막 값 (한국 아침에 아는 미국 값)."""
+    s = series.dropna(); idx = s.index.searchsorted(tdays, side='left') - 1
+    return pd.Series([s.iloc[j] if j >= 0 else np.nan for j in idx], index=tdays)
+
+def asof_incl(series, tdays):
+    s = series.dropna(); idx = s.index.searchsorted(tdays, side='right') - 1
+    return pd.Series([s.iloc[j] if j >= 0 else np.nan for j in idx], index=tdays)
+
+def rolling_pct(x, n=250, minp=120):
+    """x의 직전 n개(당일 제외) 대비 백분위(0~100) = 과거값 중 x 이하 비율."""
+    v = x.values; out = np.full(len(v), np.nan)
+    for i in range(len(v)):
+        past = v[max(0, i - n):i]; past = past[~np.isnan(past)]
+        if len(past) >= minp and not np.isnan(v[i]): out[i] = 100.0 * np.mean(past <= v[i])
+    return pd.Series(out, index=x.index)
+
+# ───────────────────────────── 입력
+def read_price(path):
+    df = pd.read_csv(path, parse_dates=["date"]).sort_values("date").drop_duplicates("date")
+    df = df.set_index("date")
+    return df
+
+def read_fchart_xml(path):
+    """네이버 fchart XML → DataFrame(date, open, high, low, close, volume)."""
+    import re
+    txt = open(path, encoding="utf-8", errors="ignore").read()
+    rows = [r.split("|") for r in re.findall(r'<item data="([^"]+)"', txt)]
+    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    for c in ["open", "high", "low", "close", "volume"]: df[c] = pd.to_numeric(df[c], errors="coerce")
+    return df.set_index("date").sort_index()
+
+def load_flows(naver_dir, code):
+    """종목별 외국인·기관 순매매(주). 모바일 API(mapi_trend_*) 우선, 없으면 frgn_* HTML 표."""
+    p = os.path.join(naver_dir, f"mapi_trend_{code}.csv")
+    if os.path.exists(p):
+        df = pd.read_csv(p)
+        dcol = "bizdate" if "bizdate" in df.columns else df.columns[0]
+        df["date"] = pd.to_datetime(df[dcol].astype(str).str[:10].str.replace("-", ""), format="%Y%m%d")
+        f = next((c for c in df.columns if "foreigner" in c.lower() and "pure" in c.lower() and "quant" in c.lower()), None)
+        o = next((c for c in df.columns if "organ" in c.lower() and "pure" in c.lower() and "quant" in c.lower()), None)
+        if f is None or o is None: return None, f"mapi_trend_{code}: 열 인식 실패 {list(df.columns)}"
+        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", ""), errors="coerce").values,
+                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", ""), errors="coerce").values}, index=pd.DatetimeIndex(df["date"]))
+        return out.sort_index().groupby(level=0).last(), f"mapi_trend_{code}"
+    p = os.path.join(naver_dir, f"frgn_{code}.csv")
+    if os.path.exists(p):
+        df = pd.read_csv(p)
+        df["date"] = pd.to_datetime(df["date"])
+        f = next((c for c in df.columns if "외국인" in c and "순매매" in c), None)
+        o = next((c for c in df.columns if "기관" in c and "순매매" in c), None)
+        if f is None or o is None: return None, f"frgn_{code}: 열 인식 실패 {list(df.columns)}"
+        out = pd.DataFrame({"frgn": pd.to_numeric(df[f].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce").values,
+                            "inst": pd.to_numeric(df[o].astype(str).str.replace(",", "").str.replace("+", ""), errors="coerce").values}, index=pd.DatetimeIndex(df["date"]))
+        return out.sort_index().groupby(level=0).last(), f"frgn_{code}"
+    return None, f"{code}: 수급 자료 없음"
+
+def load_market_flows(naver_dir):
+    """코스피 투자자별 순매수(억원). investor_KOSPI.csv 또는 mapi_trend_KOSPI.csv."""
+    p = os.path.join(naver_dir, "investor_KOSPI.csv")
+    if os.path.exists(p):
+        df = pd.read_csv(p); df["date"] = pd.to_datetime(df["date"])
+        f = next((c for c in df.columns if "외국인" in c), None)
+        if f is None: return None, "investor_KOSPI: 외국인 열 없음"
+        return pd.to_numeric(df.set_index("date")[f].astype(str).str.replace(",", ""), errors="coerce").sort_index(), "investor_KOSPI"
+    p = os.path.join(naver_dir, "mapi_trend_KOSPI.csv")
+    if os.path.exists(p):
+        df = pd.read_csv(p)
+        dcol = "bizdate" if "bizdate" in df.columns else df.columns[0]
+        df["date"] = pd.to_datetime(df[dcol].astype(str).str[:10].str.replace("-", ""), format="%Y%m%d")
+        f = next((c for c in df.columns if c.lower() in ("foreignvalue",) or ("foreigner" in c.lower() and "pure" in c.lower())), None)
+        if f is None: return None, f"mapi_trend_KOSPI: 열 인식 실패 {list(df.columns)}"
+        return pd.to_numeric(df.set_index("date")[f].astype(str).str.replace(",", ""), errors="coerce").sort_index().groupby(level=0).last(), "mapi_trend_KOSPI"
+    return None, "코스피 투자자별 자료 없음"
+
+def load_vkospi(naver_dir):
+    for name in ["index_VKOSPI.csv", "vkospi.csv"]:
+        p = os.path.join(naver_dir, name)
+        if os.path.exists(p):
+            df = pd.read_csv(p); df["date"] = pd.to_datetime(df["date"])
+            c = next((c for c in df.columns if "체결" in c or "close" in c.lower() or "종가" in c), df.columns[1])
+            return pd.to_numeric(df.set_index("date")[c].astype(str).str.replace(",", ""), errors="coerce").sort_index(), name
+    return None, "VKOSPI 없음 → 코스피 20일 실현변동성으로 대체"
+
+# ───────────────────────────── 계산
+def compute(session_dir, repo_dir):
+    warn = []
+    P = os.path.join(session_dir, "data", "prices"); N = os.path.join(session_dir, "data", "naver")
+    etf = read_price(os.path.join(P, "TIGER200IT.csv"))
+    # 네이버 fchart가 있으면 더 긴/최신 쪽으로 보완 (가격 불일치 0.5% 초과 시 경고)
+    fx = os.path.join(N, "try_fchart_139260.txt")
+    if os.path.exists(fx):
+        nv = read_fchart_xml(fx)
+        common = etf.index.intersection(nv.index)[-30:]
+        diff = (etf.loc[common, "close"] / nv.loc[common, "close"] - 1).abs().max()
+        if diff > 0.005: warn.append(f"TIGER200IT: Yahoo·네이버 최근 30일 종가 차이 최대 {diff:.2%}")
+        # Yahoo 결측 거래일은 네이버로 메운다. 네이버 차트는 분배락 조정가(과거가 낮음)이므로
+        # 직전 겹치는 날의 Yahoo/네이버 비율을 곱해 Yahoo 가격 기준으로 맞춘다.
+        extra = nv.index.difference(etf.index); extra = extra[extra >= etf.index[0]]
+        if len(extra):
+            ratio = (etf["close"] / nv["close"]).dropna()
+            fills = []
+            for d in extra:
+                r = ratio[ratio.index < d]
+                k = r.iloc[-1] if len(r) else 1.0
+                row = nv.loc[d, ["open", "high", "low", "close"]] * k
+                fills.append(pd.DataFrame({**row.to_dict(), "adj_close": np.nan, "volume": nv.loc[d, "volume"], "source": "naver_scaled"}, index=[d]))
+            etf = pd.concat([etf] + fills).sort_index()
+            warn.append(f"TIGER200IT: Yahoo 결측 거래일 {len(extra)}건을 네이버 가격(비율 보정)으로 보완")
+    etf = etf[etf["close"].notna()]
+    # 거래량 0인 날(유령행) 제거: 종가가 전일과 같고 거래량 0
+    ghost = (etf["volume"] == 0) & (etf["close"] == etf["close"].shift())
+    if ghost.any(): warn.append(f"TIGER200IT: 거래량 0·종가 동일 유령행 {int(ghost.sum())}건 제거 {list(etf.index[ghost].strftime('%Y-%m-%d'))[:5]}")
+    etf = etf[~ghost]
+    tdays = etf.index
+    c = etf["close"]
+
+    # P 블록
+    p1 = c / c.rolling(20, min_periods=20).max() - 1
+    p2 = wilder_rsi(c)
+    p3 = c / c.rolling(20, min_periods=20).mean() - 1
+    p4 = c / c.shift(5) - 1
+    P1 = bands_le(p1, P1_CUTS, P1_PTS); P2 = bands_le(p2, P2_CUTS, P2_PTS)
+    P3 = bands_le(p3, P3_CUTS, P3_PTS); P4 = bands_le(p4, P4_CUTS, P4_PTS)
+
+    # V 블록
+    vol = etf["volume"].replace(0, np.nan)
+    v1 = vol / vol.shift(1).rolling(20, min_periods=15).mean()
+    V1 = bands_ge(v1, V1_CUTS, V1_PTS)
+    mkt, mkt_src = load_market_flows(N)
+    etf_flow, etf_flow_src = load_flows(N, "139260")
+    if mkt is not None:
+        v2raw = mkt.reindex(tdays).rolling(5, min_periods=5).sum(); v2_src = f"코스피 외국인 순매수(억원) 5일 누적 [{mkt_src}]"
+    elif etf_flow is not None:
+        amt = (etf_flow["frgn"] + etf_flow["inst"]).reindex(tdays) * c
+        v2raw = amt.rolling(5, min_periods=5).sum(); v2_src = f"대체: 139260 (외국인+기관) 순매매 금액 5일 누적 [{etf_flow_src}]"
+        warn.append("V2: 코스피 투자자별 자료 없음 → ETF 자체 수급으로 대체 (사전 고정 대체 규칙)")
+    else:
+        v2raw = pd.Series(np.nan, index=tdays); v2_src = "없음"; warn.append("V2: 수급 자료 없음 → 0점")
+    v2 = rolling_pct(v2raw)
+    V2 = bands_le(v2, V2_CUTS, V2_PTS)
+    parts3 = []; srcs3 = []
+    for code, name in [("005930", "SAMSUNG"), ("000660", "HYNIX")]:
+        fl, src = load_flows(N, code)
+        if fl is None: warn.append(f"V3: {code} 수급 없음 ({src})"); continue
+        px = read_price(os.path.join(P, f"{name}.csv"))["close"]
+        parts3.append(((fl["frgn"] + fl["inst"]) * px.reindex(fl.index)).reindex(tdays)); srcs3.append(src)
+    if parts3:
+        v3raw = sum(parts3).rolling(5, min_periods=5).sum(); v3_src = "삼성전자+SK하이닉스 (외국인+기관) 순매매 금액 5일 누적 [" + ", ".join(srcs3) + "]"
+    else:
+        v3raw = pd.Series(np.nan, index=tdays); v3_src = "없음"
+    v3 = rolling_pct(v3raw)
+    V3 = bands_le(v3, V3_CUTS, V3_PTS)
+
+    # S 블록
+    vk, vk_src = load_vkospi(N)
+    kospi = read_price(os.path.join(P, "KOSPI.csv"))["close"]
+    fk = os.path.join(N, "try_fchart_KOSPI.txt")
+    if os.path.exists(fk):
+        nk = read_fchart_xml(fk)["close"]; kospi = pd.concat([kospi, nk[nk.index.difference(kospi.index)]]).sort_index()
+    if vk is not None:
+        s1 = asof_incl(vk, tdays); s1_src = f"VKOSPI [{vk_src}]"
+    else:
+        lr = np.log(kospi).diff(); rv = lr.rolling(20, min_periods=20).std() * np.sqrt(252) * 100
+        s1 = asof_incl(rv, tdays); s1_src = "대체: 코스피 20일 실현변동성(연율 %)"; warn.append("S1: " + vk_src)
+    S1 = bands_ge(s1, S1_CUTS, S1_PTS)
+    vix = read_price(os.path.join(P, "VIX.csv"))["close"]
+    vix20 = vix.rolling(20, min_periods=20).max()
+    s2 = asof_strict(vix20, tdays); S2 = bands_ge(s2, S2_CUTS, S2_PTS)
+    fgp = os.path.join(repo_dir, "data", "sentiment", "fear_greed.csv")
+    if os.path.exists(fgp):
+        fg = pd.read_csv(fgp, parse_dates=["date"]).set_index("date")["value"].sort_index()
+        s3 = asof_strict(fg, tdays)
+    else:
+        s3 = pd.Series(np.nan, index=tdays); warn.append("S3: 공포탐욕 자료 없음")
+    S3 = bands_le(s3, S3_CUTS, S3_PTS)
+    krw = read_price(os.path.join(P, "USDKRW.csv"))["close"]
+    s4 = asof_incl(krw / krw.shift(20) - 1, tdays); S4 = bands_ge(s4, S4_CUTS, S4_PTS)
+
+    # G 블록
+    sox = read_price(os.path.join(P, "SOX.csv"))["close"]
+    g1 = asof_strict(sox / sox.rolling(20, min_periods=20).max() - 1, tdays)
+    g2 = asof_strict(wilder_rsi(sox), tdays)
+    G1 = bands_le(g1, G1_CUTS, G1_PTS); G2 = bands_le(g2, G2_CUTS, G2_PTS)
+
+    df = pd.DataFrame({
+        "close": c, "open": etf["open"], "volume": etf["volume"],
+        "p1_dd20": p1, "p2_rsi14": p2, "p3_ma20": p3, "p4_ret5": p4,
+        "v1_volratio": v1, "v2_raw": v2raw, "v2_pct": v2, "v3_raw": v3raw, "v3_pct": v3,
+        "s1_vkospi": s1, "s2_vix20max": s2, "s3_fg": s3, "s4_krw20": s4,
+        "g1_soxdd20": g1, "g2_soxrsi": g2,
+        "P1": P1, "P2": P2, "P3": P3, "P4": P4, "V1": V1, "V2": V2, "V3": V3,
+        "S1": S1, "S2": S2, "S3": S3, "S4": S4, "G1": G1, "G2": G2,
+    }, index=tdays)
+    df["P"] = df[["P1", "P2", "P3", "P4"]].sum(axis=1); df["V"] = df[["V1", "V2", "V3"]].sum(axis=1)
+    df["S"] = df[["S1", "S2", "S3", "S4"]].sum(axis=1); df["G"] = df[["G1", "G2"]].sum(axis=1)
+    df["cond"] = df[["P", "V", "S", "G"]].sum(axis=1); df["display"] = 100 - df["cond"]
+    meta = {"v2_src": v2_src, "v3_src": v3_src, "s1_src": s1_src,
+            "last": {"ETF": str(tdays[-1].date()), "VIX": str(vix.index[-1].date()), "SOX": str(sox.index[-1].date()),
+                     "KOSPI": str(kospi.index[-1].date()), "USDKRW": str(krw.index[-1].date()),
+                     "FG": str(fg.index[-1].date()) if os.path.exists(fgp) else None,
+                     "flow_ETF": str(etf_flow.index[-1].date()) if etf_flow is not None else None,
+                     "flow_mkt": str(mkt.index[-1].date()) if mkt is not None else None},
+            "warn": warn}
+    return df, meta
+
+# ───────────────────────────── 매수 규칙 v1 시뮬레이션
+def simulate(df, rule=BUY_RULE):
+    fills = []; tranche = 0; last_px = np.nan; last_i = -99; armed = True
+    disp = df["display"].values; close = df["close"].values; opn = df["open"].values; dd = df["p1_dd20"].values
+    for i in range(len(df) - 1):
+        if tranche > 0 and dd[i] > rule["rearm_dd"]:
+            tranche = 0; last_px = np.nan; last_i = -99
+        if np.isnan(disp[i]): continue
+        if tranche == 0 and disp[i] <= rule["t1"]:
+            fills.append((df.index[i], df.index[i + 1], 1, rule["w"][0], opn[i + 1], disp[i])); tranche = 1; last_px = opn[i + 1]; last_i = i
+        elif tranche in (1, 2):
+            thr = rule["t2"] if tranche == 1 else rule["t3"]
+            if disp[i] <= thr and close[i] <= last_px * rule["gap"] and i - last_i >= rule["min_days"]:
+                fills.append((df.index[i], df.index[i + 1], tranche + 1, rule["w"][tranche], opn[i + 1], disp[i])); tranche += 1; last_px = opn[i + 1]; last_i = i
+    return pd.DataFrame(fills, columns=["signal", "fill", "tranche", "weight", "fill_px", "display_at_signal"])
+
+# ───────────────────────────── 보고
+def write_outputs(df, meta, out_dir, fills):
+    os.makedirs(out_dir, exist_ok=True)
+    df.to_csv(os.path.join(out_dir, "daily.csv"), float_format="%.6g")
+    fills.to_csv(os.path.join(out_dir, "fills_v1.csv"), index=False)
+    last = df.iloc[-1]; d = df.index[-1].strftime("%Y-%m-%d")
+    st = {"date": d, "close": float(last["close"]), "display_score": float(last["display"]), "cond": float(last["cond"]),
+          "blocks": {k: float(last[k]) for k in ["P", "V", "S", "G"]},
+          "items": {k: float(last[k]) for k in ["P1", "P2", "P3", "P4", "V1", "V2", "V3", "S1", "S2", "S3", "S4", "G1", "G2"]},
+          "raw": {k: (None if pd.isna(last[k]) else float(last[k])) for k in
+                  ["p1_dd20", "p2_rsi14", "p3_ma20", "p4_ret5", "v1_volratio", "v2_raw", "v2_pct", "v3_raw", "v3_pct",
+                   "s1_vkospi", "s2_vix20max", "s3_fg", "s4_krw20", "g1_soxdd20", "g2_soxrsi"]},
+          "sources": {"v2": meta["v2_src"], "v3": meta["v3_src"], "s1": meta["s1_src"]}, "last_obs": meta["last"], "warnings": meta["warn"]}
+    json.dump(st, open(os.path.join(out_dir, "status.json"), "w"), ensure_ascii=False, indent=1)
+    rows = [
+        ("P1 20일 낙폭", f"{last['p1_dd20']:+.1%}", last["P1"]), ("P2 RSI14", f"{last['p2_rsi14']:.1f}", last["P2"]),
+        ("P3 20일선 이격", f"{last['p3_ma20']:+.1%}", last["P3"]), ("P4 5일 수익률", f"{last['p4_ret5']:+.1%}", last["P4"]),
+        ("V1 거래량/20일", f"{last['v1_volratio']:.2f}", last["V1"]), ("V2 수급(시장) 백분위", f"{last['v2_pct']:.0f} (5일 {last['v2_raw']:,.0f})" if pd.notna(last['v2_pct']) else "없음", last["V2"]),
+        ("V3 수급(삼성+하이닉스) 백분위", f"{last['v3_pct']:.0f} (5일 {last['v3_raw']:,.0f}원)" if pd.notna(last['v3_pct']) else "없음", last["V3"]),
+        (f"S1 {meta['s1_src']}", f"{last['s1_vkospi']:.1f}", last["S1"]), ("S2 VIX 20일 최고", f"{last['s2_vix20max']:.1f}", last["S2"]),
+        ("S3 공포탐욕", f"{last['s3_fg']:.0f}" if pd.notna(last['s3_fg']) else "없음", last["S3"]), ("S4 원달러 20일 변화", f"{last['s4_krw20']:+.1%}", last["S4"]),
+        ("G1 SOX 20일 낙폭", f"{last['g1_soxdd20']:+.1%}", last["G1"]), ("G2 SOX RSI14", f"{last['g2_soxrsi']:.1f}", last["G2"]),
+    ]
+    md = [f"# TIGER 200 IT 단기저점 스코어 v1 — 최신 판정 ({d} 종가)", "",
+          f"- 종가 {last['close']:,.0f}원 · **표시점수 {last['display']:.0f}** (조건 {last['cond']:.0f} = P {last['P']:.0f} + V {last['V']:.0f} + S {last['S']:.0f} + G {last['G']:.0f})",
+          f"- 기준선 v1: 1차 ≤{BUY_RULE['t1']} · 2차 ≤{BUY_RULE['t2']} · 3차 ≤{BUY_RULE['t3']}", "",
+          "| 항목 | 원값 | 점수 |", "|---|---|---:|"]
+    md += [f"| {a} | {b} | {int(cc)} |" for a, b, cc in rows]
+    md += ["", "원천 마지막 관측: " + json.dumps(meta["last"], ensure_ascii=False)]
+    if meta["warn"]: md += ["", "경고:"] + [f"- {w}" for w in meta["warn"]]
+    if len(fills):
+        md += ["", "## 모형 가상 체결 (v1 규칙, 최근 10건)", "", "| signal | fill | tranche | weight | fill_px | display |", "|---|---|---|---|---|---|"]
+        for _, r in fills.tail(10).iterrows():
+            md.append(f"| {r['signal'].date()} | {r['fill'].date()} | {r['tranche']} | {r['weight']} | {r['fill_px']:,.0f} | {r['display_at_signal']:.0f} |")
+    md += ["", "*인샘플 규칙의 기계적 판정이며 투자 권유가 아니다.*"]
+    open(os.path.join(out_dir, "LATEST.md"), "w", encoding="utf-8").write("\n".join(md))
+    return st
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--session", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    ap.add_argument("--repo", default=None); ap.add_argument("--out", default=None)
+    a = ap.parse_args()
+    repo = a.repo or os.path.dirname(os.path.dirname(a.session))
+    out = a.out or os.path.join(a.session, "output")
+    df, meta = compute(a.session, repo)
+    fills = simulate(df)
+    st = write_outputs(df, meta, out, fills)
+    print(json.dumps({k: st[k] for k in ["date", "close", "display_score", "blocks"]}, ensure_ascii=False))
+    for w in meta["warn"]: print("WARN", w)
+
+##### FILE: sessions/20261016_tiger200it_bottom/research/backtest.py #####
+# -*- coding: utf-8 -*-
+"""단기저점 스코어 v1 백테스트 (PREREGISTRATION.md §4 고정 방법)
+실행: python3 -I backtest.py --session <세션 폴더> --repo <soxl-data 루트>
+출력: research/output/*.csv, research/output/backtest_summary.md
+"""
+import os, sys, json, argparse
+import numpy as np, pandas as pd
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "engine"))
+from tiger_it_short_bottom import compute, simulate, BUY_RULE
+from scipy.stats import beta
+
+def clopper(k, n, a=0.05):
+    lo = beta.ppf(a / 2, k, n - k + 1) if k > 0 else 0.0
+    hi = beta.ppf(1 - a / 2, k + 1, n - k) if k < n else 1.0
+    return lo, hi
+
+def short_bottoms(close, w=10, fwd=20, rebound=0.06, decline=0.93, back=30):
+    """§4 정의: ±w 최저 종가, 이후 fwd일 최고 ≥ 1+rebound, 직전 back일 최고 대비 ≤ decline."""
+    c = close.values; n = len(c); out = []
+    for t in range(back, n - fwd):
+        if c[t] != c[t - w:t + w + 1].min(): continue
+        if c[t + 1:t + fwd + 1].max() < c[t] * (1 + rebound): continue
+        if c[t] > c[t - back:t + 1].max() * decline: continue
+        out.append(t)
+    return out
+
+def episodes(disp, thr, gap=20):
+    """thr 이하로 처음 내려간 날(직전 gap일 안에 같은 신호 없음)."""
+    idx = []; last = -10**9
+    v = disp.values
+    for i in range(len(v)):
+        if not np.isnan(v[i]) and v[i] <= thr and i - last > gap:
+            idx.append(i); last = i
+    return idx
+
+def fwd_stats(df, idxs, bottoms, label):
+    """신호일 i → 다음날 시가 체결. 5/10/20일 수익률, 20일 최저 종가 추가 하락, ±5일 안 단기 저점, 다음 저점까지 일수."""
+    c = df["close"].values; o = df["open"].values; n = len(c); rows = []
+    bset = np.array(bottoms)
+    for i in idxs:
+        if i + 1 >= n: continue
+        px = o[i + 1]
+        r = {"signal": df.index[i].date(), "display": df["display"].values[i], "fill_px": px}
+        for h in (5, 10, 20):
+            r[f"ret{h}"] = c[i + 1 + h] / px - 1 if i + 1 + h < n else np.nan
+        r["mae20"] = c[i + 1:i + 21].min() / px - 1 if i + 21 <= n else np.nan
+        r["mfe20"] = c[i + 1:i + 21].max() / px - 1 if i + 21 <= n else np.nan
+        near = bset[(bset >= i - 5) & (bset <= i + 5)]
+        r["bottom_within5"] = len(near) > 0
+        nxt = bset[bset >= i]
+        r["days_to_bottom"] = int(nxt[0] - i) if len(nxt) else np.nan
+        r["bottom_vs_fill"] = c[nxt[0]] / px - 1 if len(nxt) else np.nan
+        rows.append(r)
+    out = pd.DataFrame(rows); out["set"] = label
+    return out
+
+def summarize(tab, name):
+    if len(tab) == 0: return {"set": name, "n": 0}
+    done = tab.dropna(subset=["ret20"])
+    k = int(tab["bottom_within5"].sum()); n = len(tab); lo, hi = clopper(k, n)
+    return {"set": name, "n": n,
+            "ret5_med": done["ret5"].median(), "ret10_med": done["ret10"].median(), "ret20_med": done["ret20"].median(),
+            "ret20_mean": done["ret20"].mean(), "win20": (done["ret20"] > 0).mean(),
+            "mae20_med": done["mae20"].median(), "mae20_worst": done["mae20"].min(),
+            "bottom5_rate": k / n, "bottom5_ci": f"{lo:.0%}~{hi:.0%}", "days_to_bottom_med": tab["days_to_bottom"].median(),
+            "bottom_vs_fill_med": tab["bottom_vs_fill"].median()}
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument("--session"); ap.add_argument("--repo"); a = ap.parse_args()
+    out_dir = os.path.join(a.session, "research", "output"); os.makedirs(out_dir, exist_ok=True)
+    df, meta = compute(a.session, a.repo)
+    df = df[df.index >= "2011-06-01"]
+    # 평가 가능한 마지막 날(이후 20일 필요)
+    bottoms = short_bottoms(df["close"])
+    bdf = df.iloc[bottoms][["close", "display", "P", "V", "S", "G", "P1", "P2", "P3", "P4", "V1", "V2", "V3", "S1", "S2", "S3", "S4", "G1", "G2"]].copy()
+    # 저점 ±3일 최저 표시점수
+    bdf["display_min_pm3"] = [df["display"].iloc[max(0, t - 3):t + 4].min() for t in bottoms]
+    bdf["drop_from_30d_high"] = [df["close"].iloc[t] / df["close"].iloc[t - 30:t + 1].max() - 1 for t in bottoms]
+    bdf["rebound20"] = [df["close"].iloc[t + 1:t + 21].max() / df["close"].iloc[t] - 1 for t in bottoms]
+    bdf.to_csv(os.path.join(out_dir, "short_bottoms.csv"), float_format="%.4g")
+
+    # 블록 조합별 표시점수
+    variants = {"full": df["display"], "P_only": 100 - df["P"], "P+S": 100 - df["P"] - df["S"],
+                "P+S+G": 100 - df["P"] - df["S"] - df["G"], "P+G": 100 - df["P"] - df["G"]}
+    rows = []; alltab = []
+    thrs = [70, 65, 60, 55, 50, 45, 40, 35]
+    for vname, disp in variants.items():
+        d2 = df.copy(); d2["display"] = disp
+        for thr in thrs:
+            ep = episodes(disp, thr)
+            tab = fwd_stats(d2, ep, bottoms, f"{vname}<= {thr}")
+            s = summarize(tab, f"{vname}<= {thr}"); s["variant"] = vname; s["thr"] = thr; rows.append(s); alltab.append(tab)
+            for per, (a0, a1) in {"2011-2018": ("2011-01-01", "2018-12-31"), "2019-2026": ("2019-01-01", "2026-12-31")}.items():
+                sub = tab[(pd.to_datetime(tab["signal"]) >= a0) & (pd.to_datetime(tab["signal"]) <= a1)] if len(tab) else tab
+                s2 = summarize(sub, f"{vname}<= {thr} {per}"); s2["variant"] = vname; s2["thr"] = thr; s2["period"] = per; rows.append(s2)
+    # 기준: 전체 거래일
+    allidx = list(range(0, len(df) - 21))
+    base = fwd_stats(df, allidx, bottoms, "all_days"); sb = summarize(base, "all_days"); sb["variant"] = "all_days"; rows.append(sb)
+    pd.DataFrame(rows).to_csv(os.path.join(out_dir, "threshold_table.csv"), index=False, float_format="%.4g")
+    pd.concat(alltab).to_csv(os.path.join(out_dir, "episodes_all.csv"), index=False, float_format="%.4g")
+
+    # 항목별 단독 예측력: 각 항목 점수 구간별 이후 10일 수익률 중앙·저점 ±5일 비율
+    c = df["close"].values; n = len(c)
+    f10 = pd.Series([c[i + 10] / c[i] - 1 if i + 10 < n else np.nan for i in range(n)], index=df.index)
+    isb = pd.Series(False, index=df.index); 
+    for t in bottoms: isb.iloc[max(0, t - 5):t + 6] = True
+    item_rows = []
+    for item in ["P1", "P2", "P3", "P4", "V1", "V2", "V3", "S1", "S2", "S3", "S4", "G1", "G2"]:
+        for val, g in df.groupby(item):
+            m = g.index
+            item_rows.append({"item": item, "points": val, "n_days": len(g), "fwd10_med": f10[m].median(), "fwd10_mean": f10[m].mean(),
+                              "near_bottom_rate": isb[m].mean()})
+    pd.DataFrame(item_rows).to_csv(os.path.join(out_dir, "item_predictive.csv"), index=False, float_format="%.4g")
+
+    # v1 매수 규칙 시뮬레이션: 캠페인별 평균 매수가 대비 20일/60일 뒤
+    fills = simulate(df)
+    fills.to_csv(os.path.join(out_dir, "fills_v1.csv"), index=False)
+
+    # 요약 md
+    T = pd.DataFrame(rows)
+    md = ["# 백테스트 요약 (자동 생성)", "", f"기간 {df.index[0].date()} ~ {df.index[-1].date()}, 단기 저점 {len(bottoms)}개", "",
+          "## 단기 저점일 표시점수 분포", "",
+          f"- 저점일: 중앙 {bdf['display'].median():.0f}, 25% {bdf['display'].quantile(.25):.0f}, 75% {bdf['display'].quantile(.75):.0f}, 최소 {bdf['display'].min():.0f}, 최대 {bdf['display'].max():.0f}",
+          f"- 저점 ±3일 최저: 중앙 {bdf['display_min_pm3'].median():.0f}, 25% {bdf['display_min_pm3'].quantile(.25):.0f}, 75% {bdf['display_min_pm3'].quantile(.75):.0f}",
+          "", "| 저점일 표시 | 개수 | 비율 |", "|---|---:|---:|"]
+    for thr in thrs:
+        k = int((bdf["display"] <= thr).sum()); md.append(f"| ≤{thr} | {k} | {k/len(bdf):.0%} |")
+    md += ["", "## 기준선별 에피소드 성과 (full = 전 블록)", "", "| 변형 | 기준 | n | 5일 중앙 | 10일 중앙 | 20일 중앙 | 20일 승률 | 20일 추가하락 중앙 | 최악 | ±5일 저점 비율 (95% CI) | 저점까지 일수 중앙 | 저점가/체결가 중앙 |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|"]
+    for _, r in T[T.get("period").isna() if "period" in T else [True]*len(T)].iterrows():
+        if r["n"] == 0: continue
+        md.append(f"| {r['variant']} | {r.get('thr', '')} | {r['n']} | {r['ret5_med']:+.1%} | {r['ret10_med']:+.1%} | {r['ret20_med']:+.1%} | {r['win20']:.0%} | {r['mae20_med']:+.1%} | {r['mae20_worst']:+.1%} | {r['bottom5_rate']:.0%} ({r['bottom5_ci']}) | {r['days_to_bottom_med']:.0f} | {r['bottom_vs_fill_med']:+.1%} |")
+    open(os.path.join(out_dir, "backtest_summary.md"), "w", encoding="utf-8").write("\n".join(md))
+    print("\n".join(md))
+    print("\nwarnings:", meta["warn"])
+
+if __name__ == "__main__":
+    main()
+
+
+# ───────────────────────────── 급락형 저점의 점수 경로 (사후 분석용 보조)
+def crash_paths(session, repo, min_drop=-0.17, out_name="crash_bottom_paths.csv"):
+    df, meta = compute(session, repo); df = df[df.index >= "2011-06-01"]
+    bottoms = short_bottoms(df["close"]); rows = []
+    for t in bottoms:
+        drop = df["close"].iloc[t] / df["close"].iloc[t - 30:t + 1].max() - 1
+        if drop > min_drop: continue
+        path = df["display"].iloc[t - 7:t + 6].round(0).astype(int).tolist()
+        r = {"bottom": df.index[t].date(), "close": df["close"].iloc[t], "drop30": round(drop, 3),
+             "rebound20": round(df["close"].iloc[t + 1:t + 21].max() / df["close"].iloc[t] - 1, 3),
+             "display_at_bottom": int(df["display"].iloc[t]), "path_m7_p5": path}
+        for thr in (60, 50, 45, 40):
+            win = df["display"].iloc[t - 15:t + 1]; hit = win[win <= thr]
+            r[f"first_le{thr}_rel"] = int(df.index.get_loc(hit.index[0]) - t) if len(hit) else None
+            r[f"close_at_first_le{thr}_vs_bottom"] = round(df["close"].loc[hit.index[0]] / df["close"].iloc[t] - 1, 3) if len(hit) else None
+        rows.append(r)
+    out = pd.DataFrame(rows); out.to_csv(os.path.join(session, "research", "output", out_name), index=False)
+    return out
+
+if __name__ == "__main__" and "--paths" in sys.argv:
+    pass
+
+##### FILE: sessions/20261016_tiger200it_bottom/research/make_bundle.py #####
+# -*- coding: utf-8 -*-
+"""세션 코드 묶음 txt 생성 (주인님 보관용). 풀기:
+  import re; t=open('tiger_it_code_bundle.txt',encoding='utf-8').read()
+  [open(n,'w',encoding='utf-8').write(b) for n,b in re.findall(r'^##### FILE: (\S+) #####\n(.*?)(?=^##### FILE: |\Z)', t, re.S|re.M)]
+"""
+import os, sys, datetime
+S = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+files = ["PREREGISTRATION.md", "collect_kr.py", "requirements.txt", "engine/tiger_it_short_bottom.py",
+         "research/backtest.py", "research/make_bundle.py"]
+wf = os.path.join(os.path.dirname(os.path.dirname(S)), ".github", "workflows", "kr-collect.yml")
+out = [f"# TIGER 200 IT 단기저점 스코어 — 코드 묶음 ({datetime.date.today()})",
+       "# 풀기: 위 docstring의 두 줄 파이썬을 unpack.py로 저장해 실행", ""]
+for f in files + [wf]:
+    p = f if os.path.isabs(f) else os.path.join(S, f)
+    name = os.path.relpath(p, os.path.dirname(os.path.dirname(S)))
+    out.append(f"##### FILE: {name} #####")
+    out.append(open(p, encoding="utf-8").read().rstrip("\n"))
+    out.append("")
+os.makedirs(os.path.join(S, "reports"), exist_ok=True)
+dst = os.path.join(S, "reports", f"tiger_it_code_bundle_{datetime.date.today()}.txt")
+open(dst, "w", encoding="utf-8").write("\n".join(out))
+print(dst)
+
+##### FILE: .github/workflows/kr-collect.yml #####
+name: kr-collect
+
+on:
+  workflow_dispatch:        # 수동 실행 (TIGER 200 IT 단기저점 연구용)
+  push:
+    branches: ['ccr-16814a64-bid0sc', 'claude/**']
+    paths: ['sessions/20261016_tiger200it_bottom/collect_kr.py', 'sessions/20261016_tiger200it_bottom/RUN_TRIGGER', '.github/workflows/kr-collect.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kr-collect
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        run: pip install -r sessions/20261016_tiger200it_bottom/requirements.txt
+
+      - name: 한국 데이터 수집
+        run: python sessions/20261016_tiger200it_bottom/collect_kr.py
+
+      - name: 로그 확인
+        run: cat sessions/20261016_tiger200it_bottom/data/collect_log.json
+
+      - name: 커밋
+        run: |
+          git config user.name  "collector-bot"
+          git config user.email "collector-bot@users.noreply.github.com"
+          git add -A sessions/20261016_tiger200it_bottom/data
+          if git diff --staged --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "session(tiger200it): KR data collect $(date -u +%Y-%m-%dT%H:%M)"
+          for i in 1 2 3; do
+            git pull --rebase origin "${{ github.ref_name }}" && git push origin HEAD:"${{ github.ref_name }}" && exit 0
+            sleep 3
+          done
+          exit 1
