@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""세션 코드 묶음 txt 생성 (주인님 보관용). 풀기:
+r"""세션 코드 묶음 txt 생성 (주인님 보관용). 풀기:
   import re; t=open('tiger_it_code_bundle.txt',encoding='utf-8').read()
   [open(n,'w',encoding='utf-8').write(b) for n,b in re.findall(r'^##### FILE: (\S+) #####\n(.*?)(?=^##### FILE: |\Z)', t, re.S|re.M)]
 """
