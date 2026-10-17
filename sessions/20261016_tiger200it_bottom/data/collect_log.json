@@ -6,11 +6,14 @@
   "yahoo SAMSUNG (005930.KS): 6694행 2000-01-04~2026-10-16",
   "yahoo HYNIX (000660.KS): 6694행 2000-01-04~2026-10-16",
   "yahoo KODEX_SEMI (091160.KS): 4282행 2007-01-29~2026-10-16",
-  "yahoo USDKRW (KRW=X): 5934행 2003-12-01~2026-10-16",
+  "yahoo USDKRW (KRW=X): 5935행 2003-12-01~2026-10-17",
   "yahoo SOX (^SOX): 8169행 1994-05-04~2026-10-16",
   "yahoo VIX (^VIX): 9268행 1990-01-02~2026-10-16",
-  "yahoo SOXX (SOXX): 6353행 2001-07-13~2026-10-16",
-  "yahoo EWY (EWY): 6647행 2000-05-12~2026-10-16",
+  "yahoo SOXX (SOXX): 6352행 2001-07-13~2026-10-15",
+  "yahoo EWY (EWY): 6646행 2000-05-12~2026-10-15",
+  "yahoo TIGER200IT_LEV (243880.KS): 2526행 2016-05-13~2026-10-16",
+  "yahoo NASDAQ (^IXIC): 14042행 1971-02-05~2026-10-16",
+  "yahoo NQ100 (^NDX): 10341행 1985-10-01~2026-10-16",
   "naver mapi trend 005930: 2900행 20141218~20261016 (고유 2900)",
   "naver mapi trend 000660: 2900행 20141218~20261016 (고유 2900)",
   "naver mapi trend 139260: 2900행 20141218~20261016 (고유 2900)",
@@ -82,7 +85,8 @@
   "naver trend scheme 139260 pageSize=20&offset=20 -> first=20261016 n=20",
   "naver trend scheme 139260 pageSize=20&bizdate=20260915 -> first=20260914 n=20",
   "naver index trend bizdate test -> {'bizdate': '20261015', 'personalValue': '+13,967', 'foreignValue': '-37,637', 'institutionalValue': '+17,176'}",
+  "naver index trend KOSPI: 기존 2613일, 신규 조회 0일",
   "krx raw dbms/MDC/STAT/standard/MDCSTAT01201: HTTP 400, 6 bytes"
  ],
- "run_at_utc": "2026-10-16T20:17:43.486844"
+ "run_at_utc": "2026-10-17T00:37:23.754362"
 }
