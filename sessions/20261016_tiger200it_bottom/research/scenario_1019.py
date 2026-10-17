@@ -17,11 +17,11 @@ fgp = os.path.join(repo, "data", "sentiment", "fear_greed.csv"); fg = pd.read_cs
 fg_last = fg.iloc[-1]; S3 = bands_le([fg_last], S3_CUTS, S3_PTS)[0]
 S1 = d["S1"].iloc[-1]; S4 = d["S4"].iloc[-1]   # 코스피 실현변동성·원달러는 10/16 값 유지
 Sblk = S1 + S2 + S3 + S4
-print(json.dumps({"us_date": us, "SOX": round(float(sox.loc[us]), 2), "SOX_dd20": round(float(g1), 4), "SOX_rsi": round(float(g2), 1), "VIX": float(vix.loc[us]), "VIX_20max": round(float(v20), 2),
+print(json.dumps({k: (float(v) if hasattr(v, "item") else v) for k, v in {"us_date": us, "SOX": round(float(sox.loc[us]), 2), "SOX_dd20": round(float(g1), 4), "SOX_rsi": round(float(g2), 1), "VIX": float(vix.loc[us]), "VIX_20max": round(float(v20), 2),
                   "NASDAQ": None if nq is None else round(float(nq.loc[us]), 2), "NASDAQ_chg": None if nq is None else round(float(nq.loc[us] / nq.shift(1).loc[us] - 1), 4),
                   "fear_greed": {"date": str(fg.index[-1].date()), "value": float(fg_last)}, "G": G, "S2": S2, "S3": S3, "S1": S1, "S4": S4, "S": Sblk,
                   "lev_close_1016": None if lev is None else float(lev.iloc[-1]), "lev_last_date": None if lev is None else str(lev.index[-1].date()),
-                  "etf_close_1016": float(c.iloc[-1])}, ensure_ascii=False))
+                  "etf_close_1016": float(c.iloc[-1])}.items()}, ensure_ascii=False))
 base = c.iloc[-1]; levc = None if lev is None else lev.iloc[-1]
 rows = []
 for V, label in [(2, "V2"), (10, "V10")]:
