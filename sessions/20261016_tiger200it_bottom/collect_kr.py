@@ -37,6 +37,9 @@ YF = {
     "VIX":        "^VIX",
     "SOXX":       "SOXX",
     "EWY":        "EWY",         # 미국상장 한국 ETF (야간 선행지표)
+    "TIGER200IT_LEV": "243880.KS",  # TIGER 200 IT레버리지 (2배)
+    "NASDAQ":     "^IXIC",
+    "NQ100":      "^NDX",
 }
 try:
     import yfinance as yf
@@ -321,6 +324,13 @@ try:
             days = pd.read_csv(etfp)["date"].astype(str).str.replace("-", "")
             days = [d for d in days if d >= "20160101"]
             rows = []
+            prevp = os.path.join(OUT, "naver", "mapi_trend_KOSPI.csv")
+            if os.path.exists(prevp):
+                prev = pd.read_csv(prevp, dtype=str)
+                have = set(prev["bizdate"].astype(str))
+                rows = prev.to_dict("records")
+                days = [d for d in days if d not in have]
+                note(f"naver index trend KOSPI: 기존 {len(have)}일, 신규 조회 {len(days)}일")
             for d in days:
                 try:
                     js = get(f"https://m.stock.naver.com/api/index/KOSPI/trend?bizdate={d}").json()
