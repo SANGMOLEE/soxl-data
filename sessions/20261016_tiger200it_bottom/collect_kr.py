@@ -415,5 +415,22 @@ try:
 except Exception as e:
     fail(f"krx raw VKOSPI: {e!r}")
 
+# ─────────────────────────────── 4. CNN 공포탐욕 (미국 마감 직후 재산출용)
+try:
+    import requests
+    r = requests.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+                     headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=60)
+    if r.ok:
+        js = r.json(); fg = js.get("fear_and_greed", {}); hist = js.get("fear_and_greed_historical", {}).get("data", [])
+        rows = [{"date": pd.to_datetime(x["x"], unit="ms").strftime("%Y-%m-%d"), "value": round(float(x["y"]), 2), "rating": x.get("rating", "")} for x in hist]
+        df = pd.DataFrame(rows).drop_duplicates("date", keep="last").sort_values("date")
+        os.makedirs(os.path.join(OUT, "sentiment"), exist_ok=True)
+        df.to_csv(os.path.join(OUT, "sentiment", "fear_greed_cnn.csv"), index=False)
+        ok(f"cnn fear_greed: {len(df)}행 {df['date'].iloc[0]}~{df['date'].iloc[-1]} 현재 {fg.get('score')} ({fg.get('rating')}) 갱신 {fg.get('timestamp')}")
+    else:
+        fail(f"cnn fear_greed: HTTP {r.status_code}")
+except Exception as e:
+    fail(f"cnn fear_greed: {e!r}")
+
 json.dump(LOG, open(os.path.join(OUT, "collect_log.json"), "w"), ensure_ascii=False, indent=1)
 print(json.dumps({"ok": len(LOG["ok"]), "failed": len(LOG["failed"])}))
