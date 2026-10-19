@@ -2,7 +2,6 @@
  "ok": [
   "yahoo TIGER200IT (139260.KS): 3786행 2011-04-06~2026-10-19",
   "yahoo KOSPI (^KS11): 7346행 1996-12-11~2026-10-19",
-  "yahoo KOSPI200 (^KS200): 1행 2026-10-19~2026-10-19",
   "yahoo KOSDAQ (^KQ11): 6407행 2000-10-16~2026-10-19",
   "yahoo SAMSUNG (005930.KS): 6695행 2000-01-04~2026-10-19",
   "yahoo HYNIX (000660.KS): 6695행 2000-01-04~2026-10-19",
@@ -22,6 +21,7 @@
   "naver mapi price KOSPI200: 4140행 2009-12-18~2026-10-19"
  ],
  "failed": [
+  "yahoo KOSPI200 (^KS200): 빈 응답",
   "krx etf_139260: 빈 응답",
   "krx flow_139260: 빈 응답",
   "krx flowvol_139260: 빈 응답",
@@ -54,7 +54,8 @@
   "naver try api_idx_investor: HTTPError('404 Client Error: Not Found for url: https://api.stock.naver.com/index/KOSPI/investor?pageSize=20&page=1')",
   "naver try mapi_idx_total: HTTPError('404 Client Error: 404 for url: https://m.stock.naver.com/api/index/KOSPI/total')",
   "naver try sise_deal_rank: HTTPError('410 Client Error: 410 for url: https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=20261016&sosok=01')",
-  "naver mapi price VKOSPI: HTTPError('409 Client Error: 409 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=20&page=1')"
+  "naver mapi price VKOSPI: HTTPError('409 Client Error: 409 for url: https://m.stock.naver.com/api/index/VKOSPI/price?pageSize=20&page=1')",
+  "cnn fear_greed: HTTP 418"
  ],
  "notes": [
   "krx 지수 목록 0개 저장",
@@ -64,7 +65,7 @@
   "naver try fchart_139260: HTTP 200, 190722 bytes, head='<?xml version=\"1.0\" encoding=\"EUC-KR\" ?>\\n\\n<protocol>\\n\\n\\n\\n\\t\\n\\t\\n\\t\\t\\t<chartdata symbol=\"139260\" name=\"TIGER 200 IT\" count=\"300'",
   "naver try mapi_stock_trend: HTTP 200, 6941 bytes, head='[{\"itemCode\":\"005930\",\"bizdate\":\"20261016\",\"foreignerPureBuyQuant\":\"+906,438\",\"foreignerHoldRatio\":\"45.99%\",\"organPureBu'",
   "naver try mapi_etf_trend: HTTP 200, 6671 bytes, head='[{\"itemCode\":\"139260\",\"bizdate\":\"20261016\",\"foreignerPureBuyQuant\":\"-866\",\"foreignerHoldRatio\":\"0.56%\",\"organPureBuyQuan'",
-  "naver try mapi_index_trend: HTTP 200, 99 bytes, head='{\"bizdate\":\"20261019\",\"personalValue\":\"-11,248\",\"foreignValue\":\"-16\",\"institutionalValue\":\"+5,768\"}'",
+  "naver try mapi_index_trend: HTTP 200, 102 bytes, head='{\"bizdate\":\"20261019\",\"personalValue\":\"-11,911\",\"foreignValue\":\"+1,031\",\"institutionalValue\":\"+5,370\"}'",
   "naver try mapi_index_price: HTTP 200, 5123 bytes, head='[{\"localTradedAt\":\"2026-10-19\",\"closePrice\":\"5,768.01\",\"compareToPreviousClosePrice\":\"99.96\",\"compareToPreviousPrice\":{\"'",
   "naver try api_index_chart: HTTP 200, 1660 bytes, head='[{\"localDate\":\"20261001\",\"closePrice\":6971.35,\"openPrice\":6814.49,\"highPrice\":6971.36,\"lowPrice\":6765.06,\"accumulatedTra'",
   "naver try api_vkospi_chart: HTTP 200, 2 bytes, head='[]'",
@@ -85,8 +86,8 @@
   "naver trend scheme 139260 pageSize=20&offset=20 -> first=20261016 n=20",
   "naver trend scheme 139260 pageSize=20&bizdate=20260915 -> first=20260914 n=20",
   "naver index trend bizdate test -> {'bizdate': '20261015', 'personalValue': '+13,967', 'foreignValue': '-37,637', 'institutionalValue': '+17,176'}",
-  "naver index trend KOSPI: 기존 2613일, 신규 조회 1일",
+  "naver index trend KOSPI: 기존 2614일, 신규 조회 0일",
   "krx raw dbms/MDC/STAT/standard/MDCSTAT01201: HTTP 400, 6 bytes"
  ],
- "run_at_utc": "2026-10-19T07:46:31.403381"
+ "run_at_utc": "2026-10-19T10:16:49.372789"
 }
