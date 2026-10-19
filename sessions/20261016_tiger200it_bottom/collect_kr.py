@@ -419,7 +419,7 @@ except Exception as e:
 try:
     import requests
     r = requests.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
-                     headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=60)
+                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", "Accept": "application/json"}, timeout=60)
     if r.ok:
         js = r.json(); fg = js.get("fear_and_greed", {}); hist = js.get("fear_and_greed_historical", {}).get("data", [])
         rows = [{"date": pd.to_datetime(x["x"], unit="ms").strftime("%Y-%m-%d"), "value": round(float(x["y"]), 2), "rating": x.get("rating", "")} for x in hist]
