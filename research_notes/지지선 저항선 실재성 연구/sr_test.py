@@ -207,20 +207,23 @@ def outcomes(bars, t, v, direction, tol, X_pct, N_list=(5, 10)):
 
 
 # ----------------------------------------------------------------------------- 플라시보
-def near_any_real(idx_q, price_q, piv, L):
-    """후보 (idx, price)가 ±L 인덱스 창 안의 실제 피벗과 1.5% 이내인지 (벡터화, 청크)."""
+def near_any_real(idx_q, price_q, piv, L, excl=PLACEBO_EXCL):
+    """후보 (idx, price)가 ±L 인덱스 창 안의 실제 피벗과 excl 비율 이내인지 (벡터화, 청크)."""
     out = np.zeros(len(idx_q), bool)
+    if excl <= 0:
+        return out
     pi, pp = piv["idx"], piv["price"]
     step = 400
     for s in range(0, len(idx_q), step):
         iq, pq = idx_q[s:s + step, None], price_q[s:s + step, None]
-        m = (np.abs(pi[None, :] - iq) <= L) & (np.abs(pp[None, :] / pq - 1.0) < PLACEBO_EXCL)
+        m = (np.abs(pi[None, :] - iq) <= L) & (np.abs(pp[None, :] / pq - 1.0) < excl)
         out[s:s + step] = m.any(1)
     return out
 
 
-def placebo_shift(piv, L, rng, lo=0.03, hi=0.08):
-    """각 실제 피벗을 ±3~8% 무작위 이동 (실제 피벗 1.5% 이내면 재추출)."""
+def placebo_shift(piv, L, rng, lo=0.03, hi=0.08, excl=0.0):
+    """각 실제 피벗을 ±3~8% 무작위 이동. excl>0 이면 실제 피벗 excl 이내 후보는 재추출.
+    주의: excl>0 은 합성 널에서 체계적 편향(미방문 가격대 선택)을 만든다 — 본문 참조."""
     P = len(piv["idx"])
     price = piv["price"].copy()
     todo = np.ones(P, bool)
@@ -231,7 +234,7 @@ def placebo_shift(piv, L, rng, lo=0.03, hi=0.08):
         sgn = rng.choice([-1.0, 1.0], m)
         u = rng.uniform(lo, hi, m)
         cand = piv["price"][todo] * (1 + sgn * u)
-        bad = near_any_real(piv["idx"][todo], cand, piv, L)
+        bad = near_any_real(piv["idx"][todo], cand, piv, L, excl)
         ids = np.nonzero(todo)[0]
         price[ids[~bad]] = cand[~bad]
         todo[ids[~bad]] = False
@@ -239,8 +242,8 @@ def placebo_shift(piv, L, rng, lo=0.03, hi=0.08):
     return dict(idx=piv["idx"][ok], price=price[ok], is_high=piv["is_high"][ok], k10=piv["k10"][ok])
 
 
-def placebo_uniform(bars, piv, L, rng):
-    """각 실제 피벗 시점의 직전 L일 가격범위 안에서 균등 추출(실제 피벗 1.5% 이내 제외)."""
+def placebo_uniform(bars, piv, L, rng, excl=0.0):
+    """각 실제 피벗 시점의 직전 L일 가격범위 안에서 균등 추출. excl>0 이면 실제 피벗 excl 이내 제외."""
     hi, lo = bars["h"], bars["l"]
     P = len(piv["idx"])
     i0 = np.maximum(piv["idx"] - L, 0)
@@ -252,7 +255,7 @@ def placebo_uniform(bars, piv, L, rng):
         if not todo.any():
             break
         cand = rng.uniform(rmin[todo], rmax[todo])
-        bad = near_any_real(piv["idx"][todo], cand, piv, L)
+        bad = near_any_real(piv["idx"][todo], cand, piv, L, excl)
         ids = np.nonzero(todo)[0]
         price[ids[~bad]] = cand[~bad]
         todo[ids[~bad]] = False
@@ -328,16 +331,22 @@ def is_round(v, tol=0.003):
 
 
 # ----------------------------------------------------------------------------- 파이프라인
-def run_ticker(bars, L, tol, X_pct, rng, kinds=("real", "shift", "uniform", "virtual"),
-               with_attrs=True, piv=None):
+ALL_KINDS = ("real", "shift", "uniform", "uniform_excl", "virtual")
+KIND_LABEL = {"real": "실제 피벗", "shift": "플라시보(±3–8% 이동, 제외없음)", "uniform": "플라시보(균등, 제외없음)",
+              "uniform_excl": "플라시보(균등, 피벗 1.5% 제외)", "virtual": "가상레벨 베이스라인(거리 일치, 피벗 1.5% 제외)"}
+
+
+def run_ticker(bars, L, tol, X_pct, rng, kinds=ALL_KINDS, with_attrs=True, piv=None):
     """한 종목·한 설정에 대해 모든 레벨 종류의 이벤트+결과 DataFrame 반환."""
     if piv is None:
         piv = pivot_table(bars)
     level_sets = {"real": piv}
     if "shift" in kinds:
-        level_sets["shift"] = placebo_shift(piv, L, rng)
+        level_sets["shift"] = placebo_shift(piv, L, rng, excl=0.0)
     if "uniform" in kinds:
-        level_sets["uniform"] = placebo_uniform(bars, piv, L, rng)
+        level_sets["uniform"] = placebo_uniform(bars, piv, L, rng, excl=0.0)
+    if "uniform_excl" in kinds:
+        level_sets["uniform_excl"] = placebo_uniform(bars, piv, L, rng, excl=PLACEBO_EXCL)
     frames = []
     dist_pools = {}
     for kind, pv in level_sets.items():
@@ -354,7 +363,7 @@ def run_ticker(bars, L, tol, X_pct, rng, kinds=("real", "shift", "uniform", "vir
             for k2, arr in oc.items():
                 df[k2] = arr
             if with_attrs:
-                df["touches"] = count_touches(ev["t"], ev["v"], piv, L, tol)
+                df["touches"] = count_touches(ev["t"], ev["v"], piv, L, tol)  # 플라시보면 '실제 피벗과 겹침' 수
                 df["is_round"] = is_round(ev["v"])
             frames.append(df)
             if kind == "real":
@@ -531,7 +540,7 @@ def main():
             real = rate_row(d[d.kind == "real"], col)
             row = dict(config=label, outcome=col, group=gname, n_real=real["n"], real_rate=real["rate"],
                        real_rate_all=real["rate_all"], real_unres=real["unres"] / max(real["n"], 1))
-            for kind in ("shift", "uniform", "virtual"):
+            for kind in ("shift", "uniform", "uniform_excl", "virtual"):
                 pk = rate_row(d[d.kind == kind], col)
                 z, p, ci, h = two_prop(real["bounce"], real["bounce"] + real["brk"], pk["bounce"], pk["bounce"] + pk["brk"])
                 row.update({f"n_{kind}": pk["n"], f"{kind}_rate": pk["rate"], f"diff_{kind}": real["rate"] - pk["rate"],
@@ -575,13 +584,15 @@ def main():
                              unres=fmt_pct(r.real_unres),
                              shift=f"{fmt_pct(r.shift_rate)} (n={int(r.n_shift)})",
                              uni=f"{fmt_pct(r.uniform_rate)} (n={int(r.n_uniform)})",
+                             unix=f"{fmt_pct(r.uniform_excl_rate)} (n={int(r.n_uniform_excl)})",
                              virt=f"{fmt_pct(r.virtual_rate)} (n={int(r.n_virtual)})",
                              d_uni=f"{100 * r.diff_uniform:+.1f}pp [{100 * r.ci_uniform_lo:+.1f}, {100 * r.ci_uniform_hi:+.1f}] p={r.p_uniform:.3f}",
+                             d_unix=f"{100 * r.diff_uniform_excl:+.1f}pp p={r.p_uniform_excl:.3f}",
                              d_virt=f"{100 * r.diff_virtual:+.1f}pp p={r.p_virtual:.3f}",
                              d_shift=f"{100 * r.diff_shift:+.1f}pp p={r.p_shift:.3f}"))
-        return md_table(rows, ["g", "n", "real", "unres", "shift", "uni", "virt", "d_shift", "d_uni", "d_virt"]) \
-            .replace("| g | n | real | unres | shift | uni | virt | d_shift | d_uni | d_virt |",
-                     "| 그룹 | 실제 n | 실제 bounce율 | 미해결 | 플라시보(이동) | 플라시보(균등) | 베이스라인(가상레벨) | 차이 vs 이동 | 차이 vs 균등 [95% CI] | 차이 vs 가상 |")
+        return md_table(rows, ["g", "n", "real", "unres", "shift", "uni", "unix", "virt", "d_shift", "d_uni", "d_unix", "d_virt"]) \
+            .replace("| g | n | real | unres | shift | uni | unix | virt | d_shift | d_uni | d_unix | d_virt |",
+                     "| 그룹 | 실제 n | 실제 bounce율 | 미해결 | 플라시보(이동) | 플라시보(균등) | 플라시보(균등, 1.5% 제외) | 베이스라인(가상레벨) | 차이 vs 이동 | 차이 vs 균등 [95% CI] | 차이 vs 균등(제외) | 차이 vs 가상 |")
 
     md.append("\n## 1. 헤드라인: 기본 설정 (L=250, tol=1%, X=2%)\n")
     for col, nm in (("res_pct_N10", "N=10, X=2%"), ("res_pct_N5", "N=5, X=2%"),
@@ -632,13 +643,13 @@ def main():
           for grp in ("US", "KR"):
             r = summ[(summ.config == key) & (summ.outcome == col) & (summ.group == grp)].iloc[0]
             rows.append(dict(cfg=f"{key} [{grp}]", oc=col, n=int(r.n_real), real=fmt_pct(r.real_rate), shift=fmt_pct(r.shift_rate),
-                             uni=fmt_pct(r.uniform_rate), virt=fmt_pct(r.virtual_rate),
+                             uni=fmt_pct(r.uniform_rate), virt=fmt_pct(r.virtual_rate), unix=fmt_pct(r.uniform_excl_rate),
                              du=f"{100 * r.diff_uniform:+.1f}pp (p={r.p_uniform:.3f})",
                              dv=f"{100 * r.diff_virtual:+.1f}pp (p={r.p_virtual:.3f})",
                              ds=f"{100 * r.diff_shift:+.1f}pp (p={r.p_shift:.3f})"))
-    md.append(md_table(rows, ["cfg", "oc", "n", "real", "shift", "uni", "virt", "ds", "du", "dv"]).replace(
-        "| cfg | oc | n | real | shift | uni | virt | ds | du | dv |",
-        "| 설정 | 결과정의 | 실제 n | 실제 | 이동 | 균등 | 가상 | 차이 vs 이동 | 차이 vs 균등 | 차이 vs 가상 |"))
+    md.append(md_table(rows, ["cfg", "oc", "n", "real", "shift", "uni", "unix", "virt", "ds", "du", "dv"]).replace(
+        "| cfg | oc | n | real | shift | uni | unix | virt | ds | du | dv |",
+        "| 설정 | 결과정의 | 실제 n | 실제 | 이동 | 균등 | 균등(1.5%제외) | 가상 | 차이 vs 이동 | 차이 vs 균등 | 차이 vs 가상 |"))
 
     # ------------------------------------------------------------------ 조건별 분할
     print("== 조건별 분할")
@@ -692,6 +703,13 @@ def main():
     cond_rows += cond_block(evb, "(viii) 피벗 역할(같은 역할 vs 역할전환)", "role", only_real=True, order=["same-role", "role-reversal"])
     cond_rows += cond_block(evb, "(ix) 피벗 강도(k)", "k_name", only_real=True, order=["k5-only", "k10"])
     cond_rows += cond_block(evb, "(x) 피벗 이후 레벨 돌파 여부", "pb_name", order=["intact", "broken-before"])
+    # 플라시보(균등, 제외없음) 이벤트 중 실제 활성 피벗과 tol 이내로 겹치는 것 vs 아닌 것
+    evu = evb[evb.kind == "uniform"].copy()
+    evu["coin"] = np.where(evu["touches"] > 0, "coincident(실제 피벗 1% 이내)", "clean(겹침 없음)")
+    for val, d in evu.groupby("coin"):
+        rr = rate_row(d, "res_pct_N10")
+        cond_rows.append(dict(split="(xi) 균등 플라시보 이벤트의 실제 피벗 겹침", value=val, n_real=rr["n"], real_rate=rr["rate"],
+                              ci_lo=wilson(rr["bounce"], rr["bounce"] + rr["brk"])[0], ci_hi=wilson(rr["bounce"], rr["bounce"] + rr["brk"])[1]))
     # 터치 수: 추세 카이제곱
     tb = evb[evb.kind == "real"]
     tb = tb[tb.res_pct_N10 != 0]
@@ -728,96 +746,144 @@ def main():
 
     # ------------------------------------------------------------------ 합성 널
     print(f"== 합성 널 (block bootstrap, block=10, paths={args.paths})")
-    syn_rows = []
-    syn_md = []
-    real_pooled = {}
-    for col in ("res_pct_N5", "res_pct_N10", "res_atr_N10"):
-        real_pooled[col] = rate_row(ev0[ev0.kind == "real"], col)["rate"]
-    syn_stats = {tk: {} for tk in tickers}
-    pooled_acc = []  # (path, col) -> (bounce, brk) 누적
+    OUTS = ("res_pct_N5", "res_pct_N10", "res_atr_N10")
+
+    def add_split_cols(df):
+        df = df.copy()
+        df["touch_bin"] = pd.cut(df["touches"], [-1, 0, 1, 2, 99], labels=["0", "1", "2", "3+"]).astype(str)
+        df["dir_name"] = np.where(df["dir"] > 0, "support", "resistance")
+        df["role"] = np.where(df["kind"] == "virtual", "n/a",
+                              np.where((df["dir"] > 0) == (~df["pivot_is_high"]), "same-role", "role-reversal"))
+        df["k_name"] = np.where(df["pivot_k10"], "k10", "k5-only")
+        df["pb_name"] = np.where(df["prior_break"], "broken-before", "intact")
+        return df
+
+    def group_counts(df):
+        """(kind, split, value, outcome) -> (bounce, break) 카운트"""
+        rec = {}
+        for kind, d in df.groupby("kind"):
+            for col in OUTS:
+                r = d[col].to_numpy()
+                rec[(kind, "all", "all", col)] = (int((r == 1).sum()), int((r == -1).sum()))
+            if kind in ("real", "uniform", "virtual"):
+                for split in ("dir_name", "touch_bin", "role", "k_name", "pb_name"):
+                    if kind != "real" and split not in ("dir_name", "touch_bin"):
+                        continue
+                    for val, dd in d.groupby(split):
+                        for col in OUTS:
+                            r = dd[col].to_numpy()
+                            rec[(kind, split, val, col)] = (int((r == 1).sum()), int((r == -1).sum()))
+        return rec
+
+    def rate_of(cnt, key):
+        b_, k_ = cnt.get(key, (0, 0))
+        return b_ / (b_ + k_) if (b_ + k_) > 0 else np.nan
+
+    evb_s = add_split_cols(ev0)
+    real_counts = {tk: group_counts(evb_s[evb_s.ticker == tk]) for tk in tickers}
+    syn_counts = {tk: [] for tk in tickers}   # per path dict
+    syn_nev = {tk: [] for tk in tickers}
     for tk in tickers:
         b = bars[tk]
         tk_t0 = time.time()
-        recs = []
         n_paths = args.paths if (tk in ("SOX", "SPY", "SOXL", "TIGER200IT") or args.paths_secondary is None) else args.paths_secondary
         for pth in range(n_paths):
             sb = bootstrap_bars(b, 10, rng)
-            df = run_ticker(sb, BASE["L"], BASE["tol"], BASE["X"], rng, kinds=("real", "uniform"), with_attrs=False)
-            rec = dict(path=pth)
-            for col in ("res_pct_N5", "res_pct_N10", "res_atr_N10"):
-                a = rate_row(df[df.kind == "real"], col)
-                u = rate_row(df[df.kind == "uniform"], col)
-                rec[f"{col}_real"] = a["rate"]
-                rec[f"{col}_uni"] = u["rate"]
-                rec[f"{col}_diff"] = a["rate"] - u["rate"]
-                rec[f"{col}_rb"] = a["bounce"]
-                rec[f"{col}_rk"] = a["brk"]
-                rec[f"{col}_ub"] = u["bounce"]
-                rec[f"{col}_uk"] = u["brk"]
-            rec["n_real"] = int((df.kind == "real").sum())
-            rec["ret10_real"] = df[df.kind == "real"]["ret10"].mean()
-            recs.append(rec)
+            df = run_ticker(sb, BASE["L"], BASE["tol"], BASE["X"], rng, kinds=ALL_KINDS, with_attrs=True)
+            df = add_split_cols(df)
+            syn_counts[tk].append(group_counts(df))
+            syn_nev[tk].append(int((df.kind == "real").sum()))
             if (pth + 1) % 50 == 0 or pth == n_paths - 1:
                 print(f"  {tk}: {pth + 1}/{n_paths} paths  ({time.time() - tk_t0:.0f}s)")
-        sd = pd.DataFrame(recs)
-        sd["ticker"] = tk
-        pooled_acc.append(sd)
-        real_df = ev0[(ev0.ticker == tk) & (ev0.kind == "real")]
-        uni_df = ev0[(ev0.ticker == tk) & (ev0.kind == "uniform")]
-        for col in ("res_pct_N5", "res_pct_N10", "res_atr_N10"):
-            rr = rate_row(real_df, col)["rate"]
-            dd = rr - rate_row(uni_df, col)["rate"]
-            null = sd[f"{col}_real"].dropna().to_numpy()
-            nulld = sd[f"{col}_diff"].dropna().to_numpy()
-            syn_rows.append(dict(ticker=tk, outcome=col, real_rate=rr, null_mean=null.mean(), null_sd=null.std(ddof=1),
-                                 null_p05=np.percentile(null, 5), null_p95=np.percentile(null, 95),
-                                 pct_rank=(null < rr).mean(), p_one_sided_high=(null >= rr).mean(),
-                                 p_two_sided=min(1.0, 2 * min((null >= rr).mean(), (null <= rr).mean())),
-                                 real_minus_uni=dd, null_diff_mean=nulld.mean(), null_diff_sd=nulld.std(ddof=1),
-                                 p_diff_two_sided=min(1.0, 2 * min((nulld >= dd).mean(), (nulld <= dd).mean())),
-                                 n_real_events=len(real_df), null_n_events_mean=sd["n_real"].mean(),
-                                 real_ret10=real_df["ret10"].mean(), null_ret10_mean=sd["ret10_real"].mean(),
-                                 null_ret10_sd=sd["ret10_real"].std(ddof=1)))
-    # 풀링: 경로 p 에서 모든 종목 합산
-    allsd = pd.concat(pooled_acc, ignore_index=True)
-    allsd["market"] = allsd["ticker"].map(MARKET)
+
+    def pooled_counts(list_of_cnt):
+        out = {}
+        for cnt in list_of_cnt:
+            for k, (b_, k_) in cnt.items():
+                ob, ok_ = out.get(k, (0, 0))
+                out[k] = (ob + b_, ok_ + k_)
+        return out
+
+    # 풀링(시장별): 경로 p 에서 해당 시장 종목들을 합산 (종목별 경로 수가 다르면 min 사용)
+    groups = {tk: [tk] for tk in tickers}
     for mk in ("US", "KR"):
-      evm = ev0[ev0.market == mk]
-      if (evm.kind == "real").sum() == 0 or not (allsd.market == mk).any():
-          continue
-      for col in ("res_pct_N5", "res_pct_N10", "res_atr_N10"):
-        g = allsd[allsd.market == mk].groupby("path")
-        null = (g[f"{col}_rb"].sum() / (g[f"{col}_rb"].sum() + g[f"{col}_rk"].sum())).to_numpy()
-        nullu = (g[f"{col}_ub"].sum() / (g[f"{col}_ub"].sum() + g[f"{col}_uk"].sum())).to_numpy()
-        nulld = null - nullu
-        rr = rate_row(evm[evm.kind == "real"], col)["rate"]
-        dd = rr - rate_row(evm[evm.kind == "uniform"], col)["rate"]
-        syn_rows.append(dict(ticker=f"POOLED-{mk}", outcome=col, real_rate=rr, null_mean=null.mean(), null_sd=null.std(ddof=1),
-                             null_p05=np.percentile(null, 5), null_p95=np.percentile(null, 95),
-                             pct_rank=(null < rr).mean(), p_one_sided_high=(null >= rr).mean(),
-                             p_two_sided=min(1.0, 2 * min((null >= rr).mean(), (null <= rr).mean())),
-                             real_minus_uni=dd, null_diff_mean=nulld.mean(), null_diff_sd=nulld.std(ddof=1),
-                             p_diff_two_sided=min(1.0, 2 * min((nulld >= dd).mean(), (nulld <= dd).mean())),
-                             n_real_events=int((evm.kind == "real").sum()), null_n_events_mean=g["n_real"].sum().mean(),
-                             real_ret10=evm[evm.kind == "real"]["ret10"].mean(),
-                             null_ret10_mean=np.nan, null_ret10_sd=np.nan))
+        mem = [tk for tk in tickers if MARKET[tk] == mk]
+        if mem:
+            groups[f"POOLED-{mk}"] = mem
+    syn_rows = []
+    for gname, mem in groups.items():
+        npth = min(len(syn_counts[tk]) for tk in mem)
+        real_c = pooled_counts([real_counts[tk] for tk in mem])
+        null_c = [pooled_counts([syn_counts[tk][p] for tk in mem]) for p in range(npth)]
+        n_real_ev = int(((evb_s.kind == "real") & evb_s.ticker.isin(mem)).sum())
+        null_nev = np.mean([sum(syn_nev[tk][p] for tk in mem) for p in range(npth)])
+        for col in OUTS:
+            rr = rate_of(real_c, ("real", "all", "all", col))
+            null = np.array([rate_of(c, ("real", "all", "all", col)) for c in null_c])
+            row = dict(group=gname, outcome=col, n_paths=npth, real_rate=rr, null_mean=np.nanmean(null), null_sd=np.nanstd(null, ddof=1),
+                       null_p05=np.nanpercentile(null, 5), null_p95=np.nanpercentile(null, 95),
+                       pct_rank=np.nanmean(null < rr), p_two_sided=min(1.0, 2 * min(np.nanmean(null >= rr), np.nanmean(null <= rr))),
+                       n_real_events=n_real_ev, null_n_events_mean=null_nev)
+            for kind in ("shift", "uniform", "uniform_excl", "virtual"):
+                dreal = rr - rate_of(real_c, (kind, "all", "all", col))
+                dnull = np.array([rate_of(c, ("real", "all", "all", col)) - rate_of(c, (kind, "all", "all", col)) for c in null_c])
+                dnull = dnull[np.isfinite(dnull)]
+                row[f"diff_{kind}"] = dreal
+                row[f"nulldiff_{kind}_mean"] = dnull.mean() if len(dnull) else np.nan
+                row[f"nulldiff_{kind}_sd"] = dnull.std(ddof=1) if len(dnull) > 1 else np.nan
+                row[f"corrected_{kind}"] = dreal - (dnull.mean() if len(dnull) else np.nan)
+                row[f"p_{kind}"] = (min(1.0, 2 * min((dnull >= dreal).mean(), (dnull <= dreal).mean())) if len(dnull) else np.nan)
+            # 조건별 (실제 피벗 내부 분할) 널 보정
+            for split, vals in (("dir_name", ("support", "resistance")), ("touch_bin", ("1", "2", "3+")),
+                                ("role", ("same-role", "role-reversal")), ("k_name", ("k5-only", "k10")),
+                                ("pb_name", ("intact", "broken-before"))):
+                for val in vals:
+                    rrv = rate_of(real_c, ("real", split, val, col))
+                    nv = np.array([rate_of(c, ("real", split, val, col)) for c in null_c])
+                    nv = nv[np.isfinite(nv)]
+                    row[f"cond_{split}_{val}_real"] = rrv
+                    row[f"cond_{split}_{val}_null"] = nv.mean() if len(nv) else np.nan
+                    row[f"cond_{split}_{val}_nullsd"] = nv.std(ddof=1) if len(nv) > 1 else np.nan
+                    row[f"cond_{split}_{val}_p"] = (min(1.0, 2 * min((nv >= rrv).mean(), (nv <= rrv).mean())) if len(nv) else np.nan)
+            syn_rows.append(row)
     syn = pd.DataFrame(syn_rows)
     syn.to_csv(os.path.join(HERE, "results_synthetic.csv"), index=False)
-    allsd.to_csv(os.path.join(HERE, "results_synthetic_paths.csv"), index=False)
 
-    md.append(f"\n## 7. 합성 널 (블록 부트스트랩, 블록=10, {args.paths} 경로/종목, 기본 설정)\n")
+    md.append(f"\n## 7. 합성 널 (블록 부트스트랩, 블록=10, 기본 설정). 실제 bounce율이 '기억 없는' 가격경로 분포에서 어디에 위치하는가\n")
     for col, nm in (("res_pct_N10", "N=10, X=2%"), ("res_pct_N5", "N=5, X=2%"), ("res_atr_N10", "N=10, X=1·ATR")):
-        md.append(f"\n### {nm}\n")
+        md.append(f"\n### 7-{nm}: 실제 bounce율 vs 널 분포\n")
         rows = []
-        for r in syn[syn.outcome == col].itertuples():
-            rows.append(dict(t=r.ticker, real=fmt_pct(r.real_rate), nm=f"{fmt_pct(r.null_mean)} ± {100 * r.null_sd:.1f}pp",
-                             rng_=f"[{fmt_pct(r.null_p05)}, {fmt_pct(r.null_p95)}]", pr=f"{100 * r.pct_rank:.0f}%",
-                             p=f"{r.p_two_sided:.3f}", d=f"{100 * r.real_minus_uni:+.1f}pp",
-                             nd=f"{100 * r.null_diff_mean:+.1f} ± {100 * r.null_diff_sd:.1f}pp", pd_=f"{r.p_diff_two_sided:.3f}",
-                             ne=f"{int(r.n_real_events)} / {r.null_n_events_mean:.0f}"))
-        md.append(md_table(rows, ["t", "real", "nm", "rng_", "pr", "p", "d", "nd", "pd_", "ne"]).replace(
-            "| t | real | nm | rng_ | pr | p | d | nd | pd_ | ne |",
-            "| 종목 | 실제 bounce율 | 널 평균±SD | 널 5–95% | 실제의 백분위 | 양측 p | 실제−플라시보(실데이터) | 널에서의 실제−플라시보 | 양측 p(차이) | 이벤트 수 실제/널평균 |"))
+        for r in syn[syn.outcome == col].to_dict("records"):
+            rows.append(dict(t=r["group"], np_=r["n_paths"], real=fmt_pct(r["real_rate"]), nm=f"{fmt_pct(r["null_mean"])} ± {100 * r["null_sd"]:.1f}pp",
+                             rng_=f"[{fmt_pct(r["null_p05"])}, {fmt_pct(r["null_p95"])}]", pr=f"{100 * r["pct_rank"]:.0f}%",
+                             p=f"{r["p_two_sided"]:.3f}", ex=f"{100 * (r["real_rate"] - r["null_mean"]):+.1f}pp",
+                             ne=f"{int(r["n_real_events"])} / {r["null_n_events_mean"]:.0f}"))
+        md.append(md_table(rows, ["t", "np_", "real", "nm", "rng_", "pr", "p", "ex", "ne"]).replace(
+            "| t | np_ | real | nm | rng_ | pr | p | ex | ne |",
+            "| 그룹 | 경로수 | 실제 bounce율 | 널 평균±SD | 널 5–95% | 실제의 백분위 | 양측 p | 실제−널평균 | 이벤트 수 실제/널평균 |"))
+        md.append(f"\n### 7-{nm}: 실제−플라시보 차이의 널 보정 (실데이터 차이, 널에서의 같은 차이, 보정 차이, 널 분포 기준 양측 p)\n")
+        rows = []
+        for r in syn[syn.outcome == col].to_dict("records"):
+            row = dict(t=r["group"])
+            for kind in ("shift", "uniform", "uniform_excl", "virtual"):
+                row[kind] = (f"{100 * r[f'diff_{kind}']:+.1f} / {100 * r[f'nulldiff_{kind}_mean']:+.1f}±{100 * r[f'nulldiff_{kind}_sd']:.1f}"
+                             f" → **{100 * r[f'corrected_{kind}']:+.1f}pp** (p={r[f'p_{kind}']:.3f})")
+            rows.append(row)
+        md.append(md_table(rows, ["t", "shift", "uniform", "uniform_excl", "virtual"]).replace(
+            "| t | shift | uniform | uniform_excl | virtual |",
+            "| 그룹 | vs 이동(제외없음) | vs 균등(제외없음) | vs 균등(1.5% 제외) | vs 가상레벨 |"))
+    md.append("\n### 7-c. 조건별 분할의 널 보정 (N=10, X=2%, 실제 피벗 내부 분할): 실제 / 널평균±SD (양측 p)\n")
+    rows = []
+    for r in syn[syn.outcome == "res_pct_N10"].to_dict("records"):
+        row = dict(t=r["group"])
+        for split, vals in (("dir_name", ("support", "resistance")), ("touch_bin", ("1", "2", "3+")),
+                            ("role", ("same-role", "role-reversal")), ("k_name", ("k5-only", "k10")), ("pb_name", ("intact", "broken-before"))):
+            for val in vals:
+                a = r[f"cond_{split}_{val}_real"]; b_ = r[f"cond_{split}_{val}_null"]; sd = r[f"cond_{split}_{val}_nullsd"]; p = r[f"cond_{split}_{val}_p"]
+                row[f"{split}={val}"] = f"{fmt_pct(a)} / {fmt_pct(b_)}±{100 * sd:.1f} ({p:.2f})"
+        rows.append(row)
+    cols = list(rows[0].keys())
+    md.append(md_table(rows, cols))
 
     # ------------------------------------------------------------------ 시장 비교 (KR vs US)
     md.append("\n## 6b. 시장 비교: 한국 vs 미국 (기본 설정). 차이의 차이 = (실제−균등)_KR − (실제−균등)_US\n")
