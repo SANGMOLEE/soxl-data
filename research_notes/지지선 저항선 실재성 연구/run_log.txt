@@ -13,4 +13,50 @@
   KODEX_SEMI[KR]: 4283일 2007-01-29~2026-10-19  제거행=0
 == 실제 데이터 파이프라인
   L250_tol0.01_X0.02: 이벤트 57061건 (real 15131)  4s
-  L120_tol0.01_X0.02: 이벤트 50250건 (real 11657)  7s
+  L120_tol0.01_X0.02: 이벤트 50250건 (real 11657)  6s
+  L500_tol0.01_X0.02: 이벤트 63168건 (real 18629)  10s
+  L250_tol0.005_X0.02: 이벤트 45113건 (real 11410)  13s
+  L250_tol0.02_X0.02: 이벤트 77748건 (real 21640)  17s
+== 조건별 분할
+== 합성 널 (block bootstrap, block=10, paths=200)
+  SPY: 50/200 paths  (11s)
+  SPY: 100/200 paths  (21s)
+  SPY: 150/200 paths  (31s)
+  SPY: 200/200 paths  (40s)
+  QQQ: 50/120 paths  (10s)
+  QQQ: 100/120 paths  (20s)
+  QQQ: 120/120 paths  (24s)
+  SOX: 50/200 paths  (22s)
+  SOX: 100/200 paths  (43s)
+  SOX: 150/200 paths  (65s)
+  SOX: 200/200 paths  (86s)
+  SOXX: 50/120 paths  (10s)
+  SOXX: 100/120 paths  (20s)
+  SOXX: 120/120 paths  (24s)
+  SOXL: 50/200 paths  (11s)
+  SOXL: 100/200 paths  (21s)
+  SOXL: 150/200 paths  (32s)
+  SOXL: 200/200 paths  (43s)
+  NVDA: 50/120 paths  (10s)
+  NVDA: 100/120 paths  (20s)
+  NVDA: 120/120 paths  (24s)
+  MU: 50/120 paths  (11s)
+  MU: 100/120 paths  (23s)
+  MU: 120/120 paths  (27s)
+  TIGER200IT: 50/200 paths  (9s)
+  TIGER200IT: 100/200 paths  (18s)
+  TIGER200IT: 150/200 paths  (27s)
+  TIGER200IT: 200/200 paths  (36s)
+  SAMSUNG: 50/120 paths  (18s)
+  SAMSUNG: 100/120 paths  (34s)
+  SAMSUNG: 120/120 paths  (40s)
+  HYNIX: 50/120 paths  (17s)
+  HYNIX: 100/120 paths  (35s)
+  HYNIX: 120/120 paths  (42s)
+  KOSPI: 50/120 paths  (17s)
+  KOSPI: 100/120 paths  (35s)
+  KOSPI: 120/120 paths  (42s)
+  KODEX_SEMI: 50/120 paths  (10s)
+  KODEX_SEMI: 100/120 paths  (21s)
+  KODEX_SEMI: 120/120 paths  (25s)
+== 완료 518s → tables.md, results_*.csv, events_real.csv, examples.csv
