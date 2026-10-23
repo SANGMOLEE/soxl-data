@@ -3,6 +3,6 @@ HY 10년 백분위 ≥45,6/7,OxOOOOO,4/13,False,False
 SPY가 63일 최저 +5% 이내,7/7,OOOOOOO,10/13,False,True
 VIX 최근 21일 안에 63일 최고,7/7,OOOOOOO,7/13,False,False
 HY 최근 21일 안에 63일 최고,6/7,OxOOOOO,7/13,True,True
-HY 63일 +50bp 이상,5/7,OxOOxOO,4/13,True,True
+HY 63일 +50bp 이상,5/7,OxOOxOO,4/13,True,False
 10년물 252일 최고 대비 −25bp 이하,5/7,OOOOxxO,4/13,False,False
 SPY 252일 낙폭 ≤−10%,5/7,OxOOOxO,4/13,False,False

@@ -6,7 +6,7 @@ c04 ITB/SPY 504일 위치 ≤ 20,5/7,OOxOOxO,8/11,7/13,True,True
 c05 ITB 저점이 ±10거래일 안,7/7,OOOOOOO,11/11,4/13,True,True
 c06 SPY 저점이 ±21거래일 안,7/7,OOOOOOO,6/11,4/13,False,False
 c07 SPY 252일 낙폭 ≤ −10%,5/7,OxOOOxO,10/11,4/13,False,False
-c08 HY 63일 +50bp 이상 상승,5/7,OxOOxOO,7/11,4/13,True,True
+c08 HY 63일 +50bp 이상 상승,5/7,OxOOxOO,7/11,4/13,True,False
 c09 HY 10년 백분위 ≥ 45,6/7,OxOOOOO,10/11,4/13,False,False
 c10 HY 고점이 ±21거래일 안,6/7,OxOOOOO,6/11,3/13,True,True
 c11 VIX 60일 최고 ≥ 25,5/7,OxOOOxO,10/11,12/13,False,False
