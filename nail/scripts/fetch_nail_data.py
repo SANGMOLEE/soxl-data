@@ -23,7 +23,7 @@ KST = timezone(timedelta(hours=9)); NOW = datetime.now(KST)
 PRICES = {
     'NAIL': 'NAIL', 'ITB': 'ITB', 'SPY': 'SPY', 'XHB': 'XHB',
     'LEN': 'LEN', 'DHI': 'DHI', 'PHM': 'PHM', 'NVR': 'NVR', 'TOL': 'TOL',
-    'HYG': 'HYG', 'TLT': 'TLT', 'IWM': 'IWM', 'KRE': 'KRE',
+    'HYG': 'HYG', 'TLT': 'TLT', 'IWM': 'IWM', 'KRE': 'KRE', 'QQQ': 'QQQ', 'USO': 'USO',
     'GSPC': '^GSPC', 'VIX': '^VIX', 'TNX': '^TNX', 'IRX': '^IRX', 'MOVE': '^MOVE',
 }
 FRED = [
