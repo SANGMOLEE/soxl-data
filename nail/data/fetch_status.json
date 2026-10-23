@@ -1,5 +1,5 @@
 {
- "run_at_kst": "2026-10-23 17:56:41",
+ "run_at_kst": "2026-10-23 20:48:54",
  "prices": {
   "NAIL": {
    "symbol": "NAIL",
@@ -217,6 +217,32 @@
    "last": "2026-10-22",
    "last_close": 72.41,
    "splits": []
+  },
+  "QQQ": {
+   "symbol": "QQQ",
+   "rows": 6949,
+   "first": "1999-03-10",
+   "last": "2026-10-22",
+   "last_close": 704.47,
+   "splits": [
+    [
+     "2000-03-20",
+     2.0
+    ]
+   ]
+  },
+  "USO": {
+   "symbol": "USO",
+   "rows": 5167,
+   "first": "2006-04-10",
+   "last": "2026-10-22",
+   "last_close": 162.51,
+   "splits": [
+    [
+     "2020-04-29",
+     0.125
+    ]
+   ]
   },
   "GSPC": {
    "symbol": "^GSPC",
