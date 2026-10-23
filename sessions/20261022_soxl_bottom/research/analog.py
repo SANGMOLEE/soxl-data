@@ -9,7 +9,7 @@ pd.set_option("display.width", 250)
 p = load.panel(); s, y = p["sox"], p["syn3"]
 F = ["dd60", "days_since_hi60", "dd_ath", "ma200", "rsi", "spy_dd60", "vix", "hy_chg20"]
 X = p[F].dropna()
-X = X[X.index < "2026-10-01"]           # 현재 에피소드 제외
+X = X.iloc[:-60]                     # 현재 에피소드(최근 60거래일) 제외
 now = p[F].iloc[-1]
 z = (X - X.mean()) / X.std()
 zn = (now - X.mean()) / X.std()

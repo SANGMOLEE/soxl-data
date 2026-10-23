@@ -1,21 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-사례 연구 — '10거래일 안팎에 SOX가 60일 고점 대비 -15% 이상 급락한 첫날'
-(2026-10-16 이 이 조건을 처음 충족: -15.7%, 고점 후 8일)
-이후 60거래일 동안 얼마나 더 빠졌고, 언제 바닥이었는지.
+사례 연구 — 'SOX가 60일 고점 대비 TH 이상 급락한 첫날(고점 후 FAST일 이내)'
+TH 는 마지막 종가의 60일 고점 대비 낙폭을 1%p 단위로 내림한 값(현재와 같은 깊이),
+FAST 는 현재 고점 후 경과일 + 5.  이후 60거래일 동안 얼마나 더 빠졌고, 언제 바닥이었는지.
 """
 import pandas as pd, numpy as np, load
 pd.set_option("display.width", 250); pd.set_option("display.max_rows", 200)
 p = load.panel()
 s, y = p["sox"], p["syn3"]
 H = 60
-TH = -0.15
+TH = np.ceil(p['dd60'].iat[-1]*100)/100   # 예: -18.8% → -18%
+FAST = int(p['days_since_hi60'].iat[-1]) + 5
+print(f'기준일 {p.index[-1].date()}  TH={TH:.0%}  FAST={FAST}일')
 
 ev, last = [], None
 for i, t in enumerate(p.index):
     if i < 250 or i + 1 >= len(p):
         continue
-    if p["dd60"].iat[i] <= TH and p["days_since_hi60"].iat[i] <= 15:
+    if p["dd60"].iat[i] <= TH and p["days_since_hi60"].iat[i] <= FAST:
         if last is not None and i - last < H:   # 같은 에피소드
             continue
         last = i
@@ -44,7 +46,7 @@ for i in ev:
         f60_3x=y.iloc[min(i+60, len(y)-1)] / y.iat[i] - 1,
     ))
 E = pd.DataFrame(rows)
-E.to_csv("../output/events_15.csv", index=False)
+E.to_csv("../output/events.csv", index=False)
 print(E.round(3).to_string(index=False))
 
 def summ(x, name):
