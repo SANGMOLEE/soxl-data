@@ -180,8 +180,9 @@ def collect_prices():
         spec = C.PRICES[name]
         path = os.path.join(PRICE, f"{name}.csv")
         old  = read_master(path)
+        # v1.7 — 최초 수집 시작일을 티커별로 지정할 수 있다 (장기 사이클 연구용 지수)
         start = (old["date"].max() - pd.Timedelta(days=45)).strftime("%Y-%m-%d") \
-                if old is not None and len(old) else "2009-01-01"
+                if old is not None and len(old) else spec.get("start", "2009-01-01")
 
         new, err = None, []
         for label, fn, sym in (("yahoo", fetch_yahoo, spec["yahoo"]),
@@ -199,8 +200,12 @@ def collect_prices():
                 time.sleep(2)
 
         if new is None:
-            ev("FAIL", name, "전 제공처 실패 — " + " / ".join(err) + "  (기존 파일 유지)")
-            STATUS.setdefault("failed", []).append(name)
+            # v1.7 — optional 티커(GDXU 연구용)는 FAILED 가 아니라 WARN 으로 남긴다.
+            if spec.get("optional"):
+                ev("WARN", name, "선택 티커 전 제공처 실패 — " + " / ".join(err) + "  (기존 파일 유지)")
+            else:
+                ev("FAIL", name, "전 제공처 실패 — " + " / ".join(err) + "  (기존 파일 유지)")
+                STATUS.setdefault("failed", []).append(name)
             if old is not None:
                 results[name] = old
                 if name == C.CALENDAR_REF:
@@ -240,8 +245,11 @@ def collect_prices():
         for i in issues:
             ev("WARN", name, i)
         if not okflag:
-            ev("FAIL", name, "검증 실패 → 저장 취소, 기존 파일 유지")
-            STATUS.setdefault("failed", []).append(name)
+            if spec.get("optional"):
+                ev("WARN", name, "선택 티커 검증 실패 → 저장 취소, 기존 파일 유지")
+            else:
+                ev("FAIL", name, "검증 실패 → 저장 취소, 기존 파일 유지")
+                STATUS.setdefault("failed", []).append(name)
             continue
 
         if name == C.CALENDAR_REF:
@@ -307,8 +315,11 @@ def collect_fred():
             safe_write(merged, path, sid)
             out[sid] = merged
         except Exception as e:
-            ev("FAIL", sid, f"{type(e).__name__}: {str(e)[:60]} (기존 파일 유지)")
-            STATUS.setdefault("failed", []).append(sid)
+            if C.FRED[sid].get("optional"):
+                ev("WARN", sid, f"선택 시리즈 {type(e).__name__}: {str(e)[:60]} (기존 파일 유지)")
+            else:
+                ev("FAIL", sid, f"{type(e).__name__}: {str(e)[:60]} (기존 파일 유지)")
+                STATUS.setdefault("failed", []).append(sid)
             if old is not None:
                 out[sid] = old
         time.sleep(0.8)

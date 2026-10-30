@@ -3,6 +3,11 @@
 SOXL 반도체 사이클 연구용 시계열 데이터 저장소.
 매 미국 거래일 자동 수집되며, 연구 에이전트가 `raw.githubusercontent.com`으로 직접 읽는다.
 
+> **2026-10-30 — GDXU(금광주 3x ETN) 연구 추가.**
+> `scripts/config.py`에 GDXU·GDX·GDXJ·GLD·SLV·NEM·HUI·XAU·GOLD(금선물)와 FRED DFII10·T10YIE·DTWEXBGS·DGS10 를 `optional` 로 추가했다.
+> 선택 항목은 실패해도 `status`가 `FAILED`가 되지 않는다(SOXL 에이전트 보호).
+> 분석기: `python scripts/gdxu_cycle.py` (SOX 교차검증: `--lev SOXL --base SOX`). 1차 보고: `research/GDXU_사이클연구_1차_2026-10-30.md`.
+
 ---
 
 ## 1. 설치 (최초 1회)

@@ -16,6 +16,30 @@ PRICES = {
     "MU":   {"yahoo": "MU",    "stooq": "mu.us",   "role": "보조", "note": "메모리 사이클 대표"},
     "SPY":  {"yahoo": "SPY",   "stooq": "spy.us",  "role": "기준", "note": "거래일 달력 기준"},
     "QQQ":  {"yahoo": "QQQ",   "stooq": "qqq.us",  "role": "참고", "note": "상대강도 비교"},
+
+    # ── GDXU 금광주 사이클 연구 (2026-10-30 추가) ──────────────────
+    # optional=True : 수집 실패 시 FAILED 가 아니라 WARN 으로 기록한다.
+    #                 SOXL 연구 에이전트의 status 판정을 깨뜨리지 않기 위함.
+    "GDXU": {"yahoo": "GDXU",  "stooq": "gdxu.us", "role": "핵심", "optional": True,
+             "note": "3x 롱 ETN(BMO). 매매 대상. 2022-10-31 1:10 역분할(제공처 소급조정 확인 필요)"},
+    "GDXD": {"yahoo": "GDXD",  "stooq": "gdxd.us", "role": "보조", "optional": True,
+             "note": "3x 인버스 ETN. 감쇠 실측용. 2025-10-22 1:20 역분할"},
+    "GDX":  {"yahoo": "GDX",   "stooq": "gdx.us",  "role": "핵심", "optional": True, "start": "1990-01-01",
+             "note": "대형 금광주 1x. GDXU 기초지수의 주 구성. A블록 기준"},
+    "GDXJ": {"yahoo": "GDXJ",  "stooq": "gdxj.us", "role": "핵심", "optional": True,
+             "note": "중소형 금광주 1x. GDXU 기초지수의 부 구성"},
+    "GLD":  {"yahoo": "GLD",   "stooq": "gld.us",  "role": "핵심", "optional": True, "start": "1990-01-01",
+             "note": "금 현물 대용. GDX/GLD 비율(광산주 상대강도) 계산용"},
+    "SLV":  {"yahoo": "SLV",   "stooq": "slv.us",  "role": "보조", "optional": True,
+             "note": "은. 금은비율·선행 신호(2026-10-29 은이 먼저 연저점)"},
+    "NEM":  {"yahoo": "NEM",   "stooq": "nem.us",  "role": "핵심", "optional": True, "start": "1990-01-01",
+             "note": "NEM 필터 — SOXL 연구의 NVDA 필터와 동일 역할"},
+    "HUI":  {"yahoo": "^HUI",  "stooq": None,      "role": "참고", "optional": True, "start": "1990-01-01",
+             "note": "NYSE Arca Gold BUGS 지수. 1996~ 장기 사이클 저점 식별용"},
+    "XAU":  {"yahoo": "^XAU",  "stooq": None,      "role": "참고", "optional": True, "start": "1990-01-01",
+             "note": "필라델피아 금은지수. 1983~ 최장 이력"},
+    "GOLD": {"yahoo": "GC=F",  "stooq": "xauusd",  "role": "핵심", "optional": True, "start": "1990-01-01",
+             "note": "금 선물 연속물(야후) / 금 현물(stooq). 2000~"},
 }
 
 # ── FRED 거시지표 (API키 불필요) ─────────────────────────────
@@ -25,6 +49,11 @@ FRED = {
     "BAMLH0A0HYM2": {"role": "감시", "note": "하이일드 스프레드. 3.41% 돌파 감시"},
     "T10Y2Y":       {"role": "참고", "note": "장단기 금리차. 미편입"},
     "DEXKOUS":      {"role": "참고", "note": "원달러. 미편입"},
+    # ── GDXU 연구용 (2026-10-30 추가) ────────────────────────────
+    "DFII10":       {"role": "핵심", "note": "10년 TIPS 실질금리. 금 가격의 제1 거시 변수", "optional": True},
+    "T10YIE":       {"role": "참고", "note": "10년 기대인플레이션(BEI)", "optional": True},
+    "DTWEXBGS":     {"role": "핵심", "note": "광의 달러지수(FRED). DXY 대용", "optional": True},
+    "DGS10":        {"role": "참고", "note": "10년 명목금리", "optional": True},
 }
 
 # ── 심리지표 ────────────────────────────────────────────────
@@ -45,7 +74,7 @@ STALE_DAYS       = 4      # 최신일이 이보다 뒤처지면 STALE 판정
 #   NFCI     : 주간(수요일) 발표
 #   DEXKOUS  : 주 단위 갱신, 최대 7일 지연
 #   BAMLH0A0HYM2 : 1~2 영업일 지연
-STALE_EXEMPT = ("NFCI", "DEXKOUS", "BAMLH0A0HYM2")
+STALE_EXEMPT = ("NFCI", "DEXKOUS", "BAMLH0A0HYM2", "DTWEXBGS", "DFII10", "T10YIE", "DGS10")
 
 # 축소 경보 — 신규 수집분이 기존 대비 이 비율 미만이면 절단으로 간주
 SHRINK_GUARD = 0.90
