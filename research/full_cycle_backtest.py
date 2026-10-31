@@ -19,7 +19,7 @@ SOLT = spliced(sol, solt_r, 0.0195); BITU = spliced(btc, bitu_r, 0.0095)
 HALVINGS = [pd.Timestamp("2020-05-11"), pd.Timestamp("2024-04-20"), pd.Timestamp("2028-04-15")]
 P = dict(start="2020-01-01", dd_bear=0.35, ma_bottom=100, below_days=60, x_ladder=1.5, dip=0.3, brk=0.3, tmax=60, stop=0.25,
          rot_n=20, rot_in=0.0, rot_out=-0.05, tp_levels=(4, 8), final_dd=0.10, re_up=0.20, top_win=(300, 600), cost=0.003, surge=0.15,
-         manage_from_t1=True, dd_outside_top=True, min_hold=0, reenter_new_high=False, dd_park="BITU", ladder_park="BITU", rot_park="BITU", stop_park="BITU")
+         manage_from_t1=True, dd_outside_top=True, min_hold=0, reenter_new_high=False, dd_park="BITU", ladder_park="CASH", rot_park="BITU", stop_park="CASH")
 def run(P, verbose=True):
     idx = sol.index[sol.index >= P["start"]]; idx = idx[idx.isin(btc.index)]
     F = pd.DataFrame({"btc": btc, "sol": sol, "SOLT": SOLT, "BITU": BITU}).reindex(idx).ffill()
