@@ -1,0 +1,153 @@
+<title>가상 SOLT 사이클 차트</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 트레이딩뷰식 3단 패널(가상 SOLT / 비트코인 / 사이클 점수), 시간축 동기화. 색은 역할 토큰만. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#131722; --fg-2:#5d606b; --fg-3:#9598a1; --line:#e0e3eb; --grid:#eceef2;
+  --up:#089981; --down:#f23645; --ma100:#ff9800; --ma200:#2962ff; --score:#7e57c2; --scoreC:#00897b; --band-lo:rgba(8,153,129,.10); --band-hi:rgba(242,54,69,.10);
+  --accent:#2962ff; --synthetic:rgba(41,98,255,.06);
+  --font:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1117; --panel:#131722; --fg:#d1d4dc; --fg-2:#9598a1; --fg-3:#6a6d78; --line:#2a2e39; --grid:#1e222d;
+  --up:#26a69a; --down:#ef5350; --ma100:#ffb74d; --ma200:#5c8dff; --score:#b39ddb; --scoreC:#4db6ac; --band-lo:rgba(38,166,154,.12); --band-hi:rgba(239,83,80,.12);
+  --accent:#5c8dff; --synthetic:rgba(92,141,255,.07); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0e1117; --panel:#131722; --fg:#d1d4dc; --fg-2:#9598a1; --fg-3:#6a6d78; --line:#2a2e39; --grid:#1e222d;
+  --up:#26a69a; --down:#ef5350; --ma100:#ffb74d; --ma200:#5c8dff; --score:#b39ddb; --scoreC:#4db6ac; --band-lo:rgba(38,166,154,.12); --band-hi:rgba(239,83,80,.12);
+  --accent:#5c8dff; --synthetic:rgba(92,141,255,.07); color-scheme:dark }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13px;line-height:1.5;
+  padding-block:10px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1280px;margin:0 auto;display:grid;gap:8px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+h1{font-size:17px;font-weight:600;margin:0}
+.sub{color:var(--fg-2);margin:0;font-size:12px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bar .grp{display:flex;gap:2px;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+button{font:inherit;font-size:12px;color:var(--fg-2);background:var(--panel);border:0;padding:4px 10px;cursor:pointer}
+button[aria-pressed="true"]{color:var(--fg);background:var(--bg);font-weight:600}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+label.chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-2);cursor:pointer}
+.pane{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.pane .legend{position:absolute;left:10px;top:6px;z-index:3;font-size:12px;pointer-events:none;display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--fg-2)}
+.legend b{color:var(--fg);font-weight:600}
+.legend .v{font-family:var(--mono);color:var(--fg)}
+.legend .up{color:var(--up)} .legend .down{color:var(--down)}
+.legend i{display:inline-block;width:10px;height:2px;vertical-align:middle;margin-right:4px;background:var(--c)}
+.chart{width:100%}
+#c-solt{height:360px} #c-btc{height:300px} #c-score{height:180px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0}
+.tile .k{font-size:11px;color:var(--fg-3)} .tile .v{font-family:var(--mono);font-size:16px;font-weight:500;font-variant-numeric:tabular-nums} .tile .d{font-size:11px;color:var(--fg-2)}
+.foot{color:var(--fg-3);font-size:11.5px;max-width:90ch}
+@media (max-width:600px){ #c-solt{height:280px} #c-btc{height:240px} #c-score{height:150px} .pane .legend{font-size:11px} }
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>가상 SOLT 사이클 차트</h1>
+    <p class="sub">SOLT가 2022년 10월에 상장됐다고 가정한 가격(실측 비용 연 20% 반영, 2025-03-20부터 실제 가격 연결), 비트코인, 사이클 점수(1 저점 · 100 고점). 미국 거래일 봉, 주말 변동은 다음 봉에 포함.</p>
+  </header>
+  <div class="tiles" id="tiles"></div>
+  <div class="bar" role="toolbar" aria-label="차트 설정">
+    <div class="grp" id="ranges"><button data-r="6">6M</button><button data-r="12">1Y</button><button data-r="24">2Y</button><button data-r="0" aria-pressed="true">ALL</button></div>
+    <div class="grp"><button id="b-log" aria-pressed="true">로그</button><button id="b-lin" aria-pressed="false">선형</button></div>
+    <label class="chk"><input type="checkbox" id="ck-ma" checked> BTC 100·200일선</label>
+    <label class="chk"><input type="checkbox" id="ck-ev" checked> 사이클 표식</label>
+    <label class="chk"><input type="checkbox" id="ck-c" checked> 새 눈금(가정 고점 $210k)</label>
+  </div>
+  <section class="pane" aria-label="가상 SOLT"><div class="legend" id="lg-solt"></div><div class="chart" id="c-solt"></div></section>
+  <section class="pane" aria-label="비트코인"><div class="legend" id="lg-btc"></div><div class="chart" id="c-btc"></div></section>
+  <section class="pane" aria-label="사이클 점수"><div class="legend" id="lg-score"></div><div class="chart" id="c-score"></div></section>
+  <p class="foot">가상 구간(2022-10 ~ 2025-03-19)은 솔라나 거래일 간 수익의 2배에서 연 20%(실측 레버리지 비용)를 뺀 값이며, 봉의 시가·고가·저가는 그날 솔라나 변동폭을 2배로 환산한 것이다. 실제 구간은 SOLT 실제 봉을 분배금 반영 총수익으로 이어 붙였고, 전체를 오늘 실제 가격에 맞췄다. 사이클 점수는 직전 확정 저점을 1, 고점을 100으로 두는 로그 눈금이며, 점선은 2026-06-30 저점을 1, 가정 고점 $210k를 100으로 둔 새 눈금이다. 데이터: Yahoo 일봉, soxl-data 저장소.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(function(){
+const DATA = /*__DATA__*/null;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const LW = window.LightweightCharts;
+const fmtN = (v,d=0) => v==null?'':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+function theme(){ return { layout:{background:{type:'solid',color:css('--panel')},textColor:css('--fg-2'),fontFamily:css('--font')},
+  grid:{vertLines:{color:css('--grid')},horzLines:{color:css('--grid')}}, crosshair:{mode:LW.CrosshairMode.Normal,vertLine:{color:css('--fg-3'),labelBackgroundColor:css('--fg-2')},horzLine:{color:css('--fg-3'),labelBackgroundColor:css('--fg-2')}},
+  rightPriceScale:{borderColor:css('--line')}, timeScale:{borderColor:css('--line'),rightOffset:6,barSpacing:6,minBarSpacing:0.3}, localization:{locale:'ko-KR'} }; }
+function mk(id, extra){ const el=document.getElementById(id); const c=LW.createChart(el, Object.assign({width:el.clientWidth,height:el.clientHeight,handleScale:{axisPressedMouseMove:true}},theme(),extra||{})); return c; }
+const cS = mk('c-solt',{rightPriceScale:{mode:LW.PriceScaleMode.Logarithmic,borderColor:css('--line')}});
+const cB = mk('c-btc',{rightPriceScale:{mode:LW.PriceScaleMode.Logarithmic,borderColor:css('--line')}});
+const cC = mk('c-score',{rightPriceScale:{mode:LW.PriceScaleMode.Normal,borderColor:css('--line'),scaleMargins:{top:.08,bottom:.08}}});
+// 시리즈
+const sSolt = cS.addCandlestickSeries({upColor:css('--up'),downColor:css('--down'),borderUpColor:css('--up'),borderDownColor:css('--down'),wickUpColor:css('--up'),wickDownColor:css('--down'),priceFormat:{type:'price',precision:2,minMove:0.01}});
+sSolt.setData(DATA.solt);
+const sBtc = cB.addCandlestickSeries({upColor:css('--up'),downColor:css('--down'),borderUpColor:css('--up'),borderDownColor:css('--down'),wickUpColor:css('--up'),wickDownColor:css('--down'),priceFormat:{type:'price',precision:0,minMove:1}});
+sBtc.setData(DATA.btc);
+const sMa100 = cB.addLineSeries({color:css('--ma100'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}); sMa100.setData(DATA.ma100);
+const sMa200 = cB.addLineSeries({color:css('--ma200'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}); sMa200.setData(DATA.ma200);
+const sScore = cC.addAreaSeries({lineColor:css('--score'),topColor:css('--band-lo'),bottomColor:'rgba(0,0,0,0)',lineWidth:2,priceFormat:{type:'price',precision:0,minMove:1}}); sScore.setData(DATA.score);
+const sScoreC = cC.addLineSeries({color:css('--scoreC'),lineWidth:2,lineStyle:LW.LineStyle.Dashed,priceLineVisible:false}); sScoreC.setData(DATA.scoreC);
+// 점수 구간선 25 / 75
+[[25,'저점권 25'],[75,'고점권 75']].forEach(([v,t])=>sScore.createPriceLine({price:v,color:css('--fg-3'),lineWidth:1,lineStyle:LW.LineStyle.Dotted,axisLabelVisible:true,title:t}));
+// 표식
+function markers(on){
+  sSolt.setMarkers(on?[{time:DATA.listing,position:'belowBar',color:css('--accent'),shape:'arrowUp',text:'실제 상장 2025-03-20'}]:[]);
+  sBtc.setMarkers(on?DATA.events.map(e=>({time:e.time,position:e.pos,color:e.pos==='belowBar'?css('--up'):css('--down'),shape:e.pos==='belowBar'?'arrowUp':'arrowDown',text:e.text})):[]);
+}
+markers(true);
+// 범례
+const lgS=document.getElementById('lg-solt'), lgB=document.getElementById('lg-btc'), lgC=document.getElementById('lg-score');
+const byTime = arr => { const m=new Map(); arr.forEach(d=>m.set(d.time,d)); return m; };
+const mS=byTime(DATA.solt), mB=byTime(DATA.btc), m100=byTime(DATA.ma100), m200=byTime(DATA.ma200), mSc=byTime(DATA.score), mC=byTime(DATA.scoreC);
+function ohlc(d){ if(!d) return ''; const cl=d.close>=d.open?'up':'down'; const ch=(d.close/d.open-1)*100;
+  return `<span class="v">O ${fmtN(d.open,d.open<1000?2:0)}</span><span class="v">H ${fmtN(d.high,d.high<1000?2:0)}</span><span class="v">L ${fmtN(d.low,d.low<1000?2:0)}</span><span class="v ${cl}">C ${fmtN(d.close,d.close<1000?2:0)} (${ch>=0?'+':''}${ch.toFixed(2)}%)</span>`; }
+function legend(t){
+  const last = t || DATA.btc[DATA.btc.length-1].time; const syn = last < DATA.listing;
+  lgS.innerHTML = `<b>SOLT ${syn?'(가상)':'(실제)'}</b> <span class="v">${last}</span> ${ohlc(mS.get(last))}`;
+  const a=m100.get(last), b=m200.get(last);
+  lgB.innerHTML = `<b>BTC/USD</b> <span class="v">${last}</span> ${ohlc(mB.get(last))} <span><i style="--c:var(--ma100)"></i>100일선 <span class="v">${a?fmtN(a.value):'-'}</span></span> <span><i style="--c:var(--ma200)"></i>200일선 <span class="v">${b?fmtN(b.value):'-'}</span></span>`;
+  const s=mSc.get(last), c=mC.get(last);
+  lgC.innerHTML = `<b>사이클 점수</b> <span><i style="--c:var(--score)"></i>지난 눈금 <span class="v">${s?s.value:'-'}</span></span>` + (c?` <span><i style="--c:var(--scoreC)"></i>새 눈금 <span class="v">${c.value}</span></span>`:'');
+}
+legend(null);
+// 동기화: 시간축 + 십자선
+const charts=[cS,cB,cC], series=[sSolt,sBtc,sScore]; let syncing=false;
+charts.forEach((c,i)=>{
+  c.timeScale().subscribeVisibleLogicalRangeChange(r=>{ if(syncing||!r) return; syncing=true; charts.forEach((o,j)=>{ if(j!==i) o.timeScale().setVisibleLogicalRange(r); }); syncing=false; });
+  c.subscribeCrosshairMove(p=>{ const t=p.time; charts.forEach((o,j)=>{ if(j===i) return; if(t){ const d=(j===0?mS:j===1?mB:mSc).get(t); if(d) o.setCrosshairPosition(d.close!==undefined?d.close:d.value, t, series[j]); } else o.clearCrosshairPosition(); }); legend(t||null); });
+});
+// 범위 버튼
+const rangeBtns=[...document.querySelectorAll('#ranges button')];
+function setRange(months){ rangeBtns.forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.r===months))); if(!months){ const n=DATA.btc.length; cS.timeScale().setVisibleLogicalRange({from:-1,to:n+3}); return; }
+  const n=DATA.btc.length; const from=Math.max(0,n-Math.round(months*21)); cS.timeScale().setVisibleLogicalRange({from,to:n+4}); }
+rangeBtns.forEach(b=>b.addEventListener('click',()=>setRange(+b.dataset.r)));
+// 로그/선형
+const bLog=document.getElementById('b-log'), bLin=document.getElementById('b-lin');
+function setScale(log){ [cS,cB].forEach(c=>c.priceScale('right').applyOptions({mode:log?LW.PriceScaleMode.Logarithmic:LW.PriceScaleMode.Normal})); bLog.setAttribute('aria-pressed',String(log)); bLin.setAttribute('aria-pressed',String(!log)); }
+bLog.addEventListener('click',()=>setScale(true)); bLin.addEventListener('click',()=>setScale(false));
+document.getElementById('ck-ma').addEventListener('change',e=>{ sMa100.applyOptions({visible:e.target.checked}); sMa200.applyOptions({visible:e.target.checked}); });
+document.getElementById('ck-ev').addEventListener('change',e=>markers(e.target.checked));
+document.getElementById('ck-c').addEventListener('change',e=>sScoreC.applyOptions({visible:e.target.checked}));
+// 타일
+const M=DATA.meta; const f=DATA.solt[0], l=DATA.solt[DATA.solt.length-1];
+document.getElementById('tiles').innerHTML = [
+  ['가상 SOLT 2022-10 시작가', '$'+fmtN(M.solt_start,2), '오늘 가격 기준 환산'],
+  ['가상 SOLT 최고', '$'+fmtN(M.solt_max,2), M.solt_max_t],
+  ['SOLT 현재', '$'+fmtN(M.solt_last,2), '2022-10 대비 '+((M.solt_last/M.solt_start-1)*100).toFixed(0)+'%'],
+  ['BTC 현재', '$'+fmtN(M.btc_last), M.built],
+  ['사이클 점수(지난 눈금)', M.score_last, '2022-11 저점=1 · 2025-10 고점=100'],
+  ['사이클 점수(새 눈금)', M.scoreC_last==null?'-':M.scoreC_last, '2026-06 저점=1 · 가정 고점 $210k=100'],
+].map(([k,v,d])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+// 리사이즈 · 테마
+function resize(){ charts.forEach((c,i)=>{ const el=document.getElementById(['c-solt','c-btc','c-score'][i]); c.applyOptions({width:el.clientWidth,height:el.clientHeight}); }); }
+window.addEventListener('resize',resize);
+function retheme(){ charts.forEach(c=>c.applyOptions(theme())); sSolt.applyOptions({upColor:css('--up'),downColor:css('--down'),borderUpColor:css('--up'),borderDownColor:css('--down'),wickUpColor:css('--up'),wickDownColor:css('--down')});
+  sBtc.applyOptions({upColor:css('--up'),downColor:css('--down'),borderUpColor:css('--up'),borderDownColor:css('--down'),wickUpColor:css('--up'),wickDownColor:css('--down')});
+  sMa100.applyOptions({color:css('--ma100')}); sMa200.applyOptions({color:css('--ma200')}); sScore.applyOptions({lineColor:css('--score'),topColor:css('--band-lo')}); sScoreC.applyOptions({color:css('--scoreC')}); markers(document.getElementById('ck-ev').checked); }
+try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',retheme); }catch(e){}
+new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+resize(); setRange(0); requestAnimationFrame(()=>{ resize(); setRange(0); }); setTimeout(()=>setRange(0),300);
+})();
+</script>
