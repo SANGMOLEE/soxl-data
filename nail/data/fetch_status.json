@@ -1,44 +1,44 @@
 {
- "run_at_kst": "2026-10-23 20:48:54",
+ "run_at_kst": "2026-10-31 14:29:17",
  "prices": {
   "NAIL": {
    "symbol": "NAIL",
-   "rows": 2811,
+   "rows": 2817,
    "first": "2015-08-19",
-   "last": "2026-10-22",
-   "last_close": 31.6,
+   "last": "2026-10-30",
+   "last_close": 32.87,
    "splits": []
   },
   "ITB": {
    "symbol": "ITB",
-   "rows": 5149,
+   "rows": 5155,
    "first": "2006-05-05",
-   "last": "2026-10-22",
-   "last_close": 91.24,
+   "last": "2026-10-30",
+   "last_close": 92.74,
    "splits": []
   },
   "SPY": {
    "symbol": "SPY",
-   "rows": 8491,
+   "rows": 8497,
    "first": "1993-01-29",
-   "last": "2026-10-22",
-   "last_close": 763.96,
+   "last": "2026-10-30",
+   "last_close": 755.72,
    "splits": []
   },
   "XHB": {
    "symbol": "XHB",
-   "rows": 5211,
+   "rows": 5217,
    "first": "2006-02-06",
-   "last": "2026-10-22",
-   "last_close": 99.2,
+   "last": "2026-10-30",
+   "last_close": 100.97,
    "splits": []
   },
   "LEN": {
    "symbol": "LEN",
-   "rows": 11746,
+   "rows": 11752,
    "first": "1980-03-17",
-   "last": "2026-10-22",
-   "last_close": 84.45,
+   "last": "2026-10-30",
+   "last_close": 86.94,
    "splits": [
     [
      "1980-10-31",
@@ -68,10 +68,10 @@
   },
   "DHI": {
    "symbol": "DHI",
-   "rows": 8656,
+   "rows": 8662,
    "first": "1992-06-05",
-   "last": "2026-10-22",
-   "last_close": 147.66,
+   "last": "2026-10-30",
+   "last_close": 146.0,
    "splits": [
     [
      "1993-08-25",
@@ -117,10 +117,10 @@
   },
   "PHM": {
    "symbol": "PHM",
-   "rows": 11746,
+   "rows": 11752,
    "first": "1980-03-17",
-   "last": "2026-10-22",
-   "last_close": 119.48,
+   "last": "2026-10-30",
+   "last_close": 124.74,
    "splits": [
     [
      "1980-09-08",
@@ -150,18 +150,18 @@
   },
   "NVR": {
    "symbol": "NVR",
-   "rows": 10394,
+   "rows": 10400,
    "first": "1985-07-22",
-   "last": "2026-10-22",
-   "last_close": 6110.6299,
+   "last": "2026-10-30",
+   "last_close": 5958.5601,
    "splits": []
   },
   "TOL": {
    "symbol": "TOL",
-   "rows": 10152,
+   "rows": 10158,
    "first": "1986-07-08",
-   "last": "2026-10-22",
-   "last_close": 141.08,
+   "last": "2026-10-30",
+   "last_close": 145.95,
    "splits": [
     [
      "1987-02-27",
@@ -183,26 +183,26 @@
   },
   "HYG": {
    "symbol": "HYG",
-   "rows": 4916,
+   "rows": 4922,
    "first": "2007-04-11",
-   "last": "2026-10-22",
-   "last_close": 77.1,
+   "last": "2026-10-30",
+   "last_close": 77.43,
    "splits": []
   },
   "TLT": {
    "symbol": "TLT",
-   "rows": 6098,
+   "rows": 6104,
    "first": "2002-07-30",
-   "last": "2026-10-22",
-   "last_close": 81.74,
+   "last": "2026-10-30",
+   "last_close": 81.84,
    "splits": []
   },
   "IWM": {
    "symbol": "IWM",
-   "rows": 6641,
+   "rows": 6647,
    "first": "2000-05-26",
-   "last": "2026-10-22",
-   "last_close": 276.67,
+   "last": "2026-10-30",
+   "last_close": 279.33,
    "splits": [
     [
      "2005-06-09",
@@ -212,18 +212,18 @@
   },
   "KRE": {
    "symbol": "KRE",
-   "rows": 5116,
+   "rows": 5122,
    "first": "2006-06-22",
-   "last": "2026-10-22",
-   "last_close": 72.41,
+   "last": "2026-10-30",
+   "last_close": 72.01,
    "splits": []
   },
   "QQQ": {
    "symbol": "QQQ",
-   "rows": 6949,
+   "rows": 6955,
    "first": "1999-03-10",
-   "last": "2026-10-22",
-   "last_close": 704.47,
+   "last": "2026-10-30",
+   "last_close": 690.49,
    "splits": [
     [
      "2000-03-20",
@@ -233,10 +233,10 @@
   },
   "USO": {
    "symbol": "USO",
-   "rows": 5167,
+   "rows": 5173,
    "first": "2006-04-10",
-   "last": "2026-10-22",
-   "last_close": 162.51,
+   "last": "2026-10-30",
+   "last_close": 168.83,
    "splits": [
     [
      "2020-04-29",
@@ -244,100 +244,187 @@
     ]
    ]
   },
+  "SOXL": {
+   "symbol": "SOXL",
+   "rows": 4187,
+   "first": "2010-03-11",
+   "last": "2026-10-30",
+   "last_close": 77.05,
+   "splits": [
+    [
+     "2015-05-20",
+     4.0
+    ],
+    [
+     "2021-03-02",
+     15.0
+    ]
+   ]
+  },
+  "SOXX": {
+   "symbol": "SOXX",
+   "rows": 6363,
+   "first": "2001-07-13",
+   "last": "2026-10-30",
+   "last_close": 471.51,
+   "splits": [
+    [
+     "2024-03-07",
+     3.0
+    ]
+   ]
+  },
+  "SOX": {
+   "symbol": "^SOX",
+   "rows": 8179,
+   "first": "1994-05-04",
+   "last": "2026-10-30",
+   "last_close": 10688.7998,
+   "splits": []
+  },
+  "NDX": {
+   "symbol": "^NDX",
+   "rows": 10351,
+   "first": "1985-10-01",
+   "last": "2026-10-30",
+   "last_close": 28384.8496,
+   "splits": []
+  },
+  "TQQQ": {
+   "symbol": "TQQQ",
+   "rows": 4206,
+   "first": "2010-02-11",
+   "last": "2026-10-30",
+   "last_close": 62.01,
+   "splits": [
+    [
+     "2011-02-25",
+     2.0
+    ],
+    [
+     "2012-05-11",
+     2.0
+    ],
+    [
+     "2014-01-24",
+     2.0
+    ],
+    [
+     "2017-01-12",
+     2.0
+    ],
+    [
+     "2018-05-24",
+     3.0
+    ],
+    [
+     "2021-01-21",
+     2.0
+    ],
+    [
+     "2022-01-13",
+     2.0
+    ],
+    [
+     "2025-11-20",
+     2.0
+    ]
+   ]
+  },
   "GSPC": {
    "symbol": "^GSPC",
-   "rows": 24820,
+   "rows": 24826,
    "first": "1927-12-30",
-   "last": "2026-10-22",
-   "last_close": 7663.4302,
+   "last": "2026-10-30",
+   "last_close": 7580.0698,
    "splits": []
   },
   "VIX": {
    "symbol": "^VIX",
-   "rows": 9272,
+   "rows": 9278,
    "first": "1990-01-02",
-   "last": "2026-10-22",
-   "last_close": 19.03,
+   "last": "2026-10-30",
+   "last_close": 19.42,
    "splits": []
   },
   "TNX": {
    "symbol": "^TNX",
-   "rows": 16190,
+   "rows": 16196,
    "first": "1962-01-02",
-   "last": "2026-10-22",
-   "last_close": 4.953,
+   "last": "2026-10-30",
+   "last_close": 4.929,
    "splits": []
   },
   "IRX": {
    "symbol": "^IRX",
-   "rows": 16687,
+   "rows": 16693,
    "first": "1960-01-04",
-   "last": "2026-10-22",
-   "last_close": 4.022,
+   "last": "2026-10-30",
+   "last_close": 3.973,
    "splits": []
   },
   "MOVE": {
    "symbol": "^MOVE",
-   "rows": 5921,
+   "rows": 5927,
    "first": "2002-11-12",
-   "last": "2026-10-22",
-   "last_close": 106.84,
+   "last": "2026-10-30",
+   "last_close": 100.2,
    "splits": []
   }
  },
  "macro": {
   "VIXCLS": {
-   "rows": 9300,
+   "rows": 9306,
    "first": "1990-01-02",
-   "last": "2026-10-21",
-   "last_value": 16.68
+   "last": "2026-10-29",
+   "last_value": 17.2
   },
   "BAMLH0A0HYM2": {
-   "rows": 7784,
+   "rows": 7790,
    "first": "1996-12-31",
-   "last": "2026-10-21",
-   "last_value": 3.27
+   "last": "2026-10-29",
+   "last_value": 3.26
   },
   "BAA10Y": {
-   "rows": 10201,
+   "rows": 10207,
    "first": "1986-01-02",
-   "last": "2026-10-21",
-   "last_value": 1.44
+   "last": "2026-10-29",
+   "last_value": 1.49
   },
   "NFCI": {
-   "rows": 2911,
+   "rows": 2912,
    "first": "1971-01-08",
-   "last": "2026-10-16",
-   "last_value": -0.496
+   "last": "2026-10-23",
+   "last_value": -0.487
   },
   "STLFSI4": {
-   "rows": 1712,
+   "rows": 1713,
    "first": "1993-12-31",
-   "last": "2026-10-16",
-   "last_value": -0.6328
+   "last": "2026-10-23",
+   "last_value": -0.5837
   },
   "DGS10": {
-   "rows": 16186,
+   "rows": 16192,
    "first": "1962-01-02",
-   "last": "2026-10-21",
-   "last_value": 5.13
+   "last": "2026-10-29",
+   "last_value": 4.98
   },
   "DGS2": {
-   "rows": 12594,
+   "rows": 12600,
    "first": "1976-06-01",
-   "last": "2026-10-21",
-   "last_value": 4.81
+   "last": "2026-10-29",
+   "last_value": 4.61
   },
   "DGS30": {
-   "rows": 12416,
+   "rows": 12422,
    "first": "1977-02-15",
-   "last": "2026-10-21",
-   "last_value": 5.42
+   "last": "2026-10-29",
+   "last_value": 5.32
   },
   "DFF": {
-   "rows": 26411,
+   "rows": 26419,
    "first": "1954-07-01",
-   "last": "2026-10-21",
+   "last": "2026-10-29",
    "last_value": 3.88
   },
   "FEDFUNDS": {
@@ -347,52 +434,52 @@
    "last_value": 3.75
   },
   "DFEDTARU": {
-   "rows": 6520,
+   "rows": 6528,
    "first": "2008-12-16",
-   "last": "2026-10-22",
+   "last": "2026-10-30",
    "last_value": 4.0
   },
   "T10Y2Y": {
-   "rows": 12595,
+   "rows": 12601,
    "first": "1976-06-01",
-   "last": "2026-10-22",
-   "last_value": 0.31
+   "last": "2026-10-30",
+   "last_value": 0.38
   },
   "T10Y3M": {
-   "rows": 11204,
+   "rows": 11210,
    "first": "1982-01-04",
-   "last": "2026-10-22",
-   "last_value": 0.74
+   "last": "2026-10-30",
+   "last_value": 0.78
   },
   "DFII10": {
-   "rows": 5955,
+   "rows": 5961,
    "first": "2003-01-02",
-   "last": "2026-10-21",
-   "last_value": 2.76
+   "last": "2026-10-29",
+   "last_value": 2.63
   },
   "T5YIE": {
-   "rows": 5956,
+   "rows": 5962,
    "first": "2003-01-02",
-   "last": "2026-10-22",
-   "last_value": 2.45
+   "last": "2026-10-30",
+   "last_value": 2.46
   },
   "MORTGAGE30US": {
-   "rows": 2900,
+   "rows": 2901,
    "first": "1971-04-02",
-   "last": "2026-10-22",
-   "last_value": 7.32
+   "last": "2026-10-29",
+   "last_value": 7.24
   },
   "MORTGAGE15US": {
-   "rows": 1835,
+   "rows": 1836,
    "first": "1991-08-30",
-   "last": "2026-10-22",
-   "last_value": 6.68
+   "last": "2026-10-29",
+   "last_value": 6.6
   },
   "OBMMIJUMBO30YF": {
-   "rows": 2449,
+   "rows": 2455,
    "first": "2017-01-03",
-   "last": "2026-10-21",
-   "last_value": 7.609
+   "last": "2026-10-29",
+   "last_value": 7.156
   },
   "CPIAUCSL": {
    "rows": 956,
@@ -413,9 +500,9 @@
    "last_value": 4.2
   },
   "ICSA": {
-   "rows": 3120,
+   "rows": 3121,
    "first": "1967-01-07",
-   "last": "2026-10-17",
+   "last": "2026-10-24",
    "last_value": 194000.0
   },
   "PAYEMS": {
@@ -431,10 +518,10 @@
    "last_value": 103.9506
   },
   "UMCSENT": {
-   "rows": 676,
+   "rows": 677,
    "first": "1952-11-01",
-   "last": "2026-08-01",
-   "last_value": 51.7
+   "last": "2026-09-01",
+   "last_value": 48.1
   },
   "USREC": {
    "rows": 2062,
@@ -443,10 +530,10 @@
    "last_value": 0.0
   },
   "DCOILWTICO": {
-   "rows": 9527,
+   "rows": 9532,
    "first": "1986-01-02",
-   "last": "2026-10-20",
-   "last_value": 107.89
+   "last": "2026-10-27",
+   "last_value": 103.37
   },
   "HOUST": {
    "rows": 813,
@@ -464,25 +551,25 @@
    "rows": 801,
    "first": "1960-01-01",
    "last": "2026-09-01",
-   "last_value": 1400.0
+   "last_value": 1398.0
   },
   "PERMIT1": {
    "rows": 801,
    "first": "1960-01-01",
    "last": "2026-09-01",
-   "last_value": 845.0
+   "last_value": 846.0
   },
   "HSN1F": {
-   "rows": 764,
+   "rows": 765,
    "first": "1963-01-01",
-   "last": "2026-08-01",
-   "last_value": 684.0
+   "last": "2026-09-01",
+   "last_value": 676.0
   },
   "MSACSR": {
-   "rows": 764,
+   "rows": 765,
    "first": "1963-01-01",
-   "last": "2026-08-01",
-   "last_value": 8.5
+   "last": "2026-09-01",
+   "last_value": 8.4
   },
   "EXHOSLUSM495S": {
    "rows": 13,
@@ -491,22 +578,22 @@
    "last_value": 3990000.0
   },
   "CSUSHPINSA": {
-   "rows": 475,
+   "rows": 476,
    "first": "1987-01-01",
-   "last": "2026-07-01",
-   "last_value": 337.306
+   "last": "2026-08-01",
+   "last_value": 336.741
   },
   "MSPUS": {
-   "rows": 254,
+   "rows": 255,
    "first": "1963-01-01",
-   "last": "2026-04-01",
-   "last_value": 410700.0
+   "last": "2026-07-01",
+   "last_value": 393300.0
   },
   "NHSUSSPT": {
-   "rows": 80,
+   "rows": 81,
    "first": "2020-01-01",
-   "last": "2026-08-01",
-   "last_value": 57.0
+   "last": "2026-09-01",
+   "last_value": 56.0
   },
   "COMPUTSA": {
    "rows": 705,
@@ -523,7 +610,6 @@
  },
  "failed": [],
  "notes": [
-  "^VIX: 장중 미확정 행 2026-10-23 제외",
-  "HY: 보존 이력 7779행 + FRED 7784행 병합"
+  "HY: 보존 이력 7779행 + FRED 7790행 병합"
  ]
 }
