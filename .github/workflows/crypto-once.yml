@@ -1,6 +1,11 @@
 name: crypto-once
 on:
   workflow_dispatch:
+  push:
+    branches: [ccr-b178db42-c7x4uo]
+    paths:
+      - scripts/fetch_crypto_once.py
+      - .github/workflows/crypto-once.yml
 permissions:
   contents: write
 jobs:
