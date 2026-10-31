@@ -1,0 +1,2 @@
+date,btc,sol,ma100,ma200,rmom20,phase,tranche,holding,evac,wait,cycle_peak,bottom_ref,equity,below200_days,lvl_bear200,lvl_evac,lvl_reset,lvl_rot_in,lvl_rot_out,lvl_ladder,lvl_stop,last_action
+2026-10-31,77115,95.89,76274,73133,-0.0646,UP,3,BITU,False,,86603,58559,38.4906,0,73133,77943,off,0.0,-0.05,,,2026-10-13 →BITU 로테이션 이탈
