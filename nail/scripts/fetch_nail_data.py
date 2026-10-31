@@ -24,6 +24,7 @@ PRICES = {
     'NAIL': 'NAIL', 'ITB': 'ITB', 'SPY': 'SPY', 'XHB': 'XHB',
     'LEN': 'LEN', 'DHI': 'DHI', 'PHM': 'PHM', 'NVR': 'NVR', 'TOL': 'TOL',
     'HYG': 'HYG', 'TLT': 'TLT', 'IWM': 'IWM', 'KRE': 'KRE', 'QQQ': 'QQQ', 'USO': 'USO',
+    'SOXL': 'SOXL', 'SOXX': 'SOXX', 'SOX': '^SOX', 'NDX': '^NDX', 'TQQQ': 'TQQQ',
     'GSPC': '^GSPC', 'VIX': '^VIX', 'TNX': '^TNX', 'IRX': '^IRX', 'MOVE': '^MOVE',
 }
 FRED = [
