@@ -31,16 +31,17 @@ def mk_rot_trend(n, k, ma, park_weak="BITU", park_down="SOL"):
         return {park_weak: 1.0} if F.btc[p] > F.bma20[p] else {park_down: 1.0}
     return f
 def mk_rot_ladder(n, k, X, D):
-    """로테이션 + SOLT 보유 중 X배 익절(→BITU), D% 하락 후 복귀(M30/T60)."""
-    lad = mk_ladder(X, D, 0.0, 0.3, 60, "BITU")
+    """로테이션 + SOLT 보유 중 X배 익절(→BITU), 익절가 대비 D% 하락 뒤 복귀 또는 +30% 돌파 복귀 또는 60일 시간 복귀."""
     def f(i, d, F, w, st):
-        p = d[i - 1]
-        if F[f"rmom{n}"][p] <= k:
-            st["ent"]["SOLT"] = F.sol[p]; return {"BITU": 1.0}
-        if w.get("SOLT", 0) < 0.99 and "xp" not in st: st["ent"]["SOLT"] = F.sol[p]; return {"SOLT": 1.0}
-        out = lad(i, d, F, {"SOLT": 1.0 if w.get("SOLT", 0) > 0.99 else 0.0}, st)
-        if out is not None and out.get("SOLT") == 1.0: st.pop("xp", None)
-        return out
+        p = d[i - 1]; px = F.sol[p]
+        if F[f"rmom{n}"][p] <= k: st.pop("xp", None); st["ent"]["SOLT"] = px; return {"BITU": 1.0}
+        if "xp" in st:
+            st["lo"] = min(st["lo"], px); dipped = st["lo"] <= st["xp"] * (1 - D)
+            if dipped or px >= st["xp"] * 1.3 or i - st["t"] >= 60: st.pop("xp"); st["ent"]["SOLT"] = px; return {"SOLT": 1.0}
+            return {"BITU": 1.0}
+        if w.get("SOLT", 0) < 0.99: st["ent"]["SOLT"] = px; return {"SOLT": 1.0}
+        if px / st["ent"]["SOLT"] >= X: st["xp"] = px; st["lo"] = px; st["t"] = i; return {"BITU": 1.0}
+        return None
     return f
 FAM = {"보유": [("SOLT 100%", hold)]}
 FAM["변동성수확(정확)"] = [(f"목표{int(t*100)}% 밴드{int(b*100)}", mk_constmix(t, b)) for t in (0.5, 0.7, 0.8, 0.9) for b in (0.05, 0.1, 0.2)]
