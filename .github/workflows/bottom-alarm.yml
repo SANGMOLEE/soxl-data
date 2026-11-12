@@ -25,6 +25,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: python scripts/fetch_crypto_once.py
+      - run: python scripts/fetch_onchain.py || echo "onchain fetch failed, keep old file"
       - run: python research/bottom_detector.py | tail -8
       - name: 상태 저장
         run: |
