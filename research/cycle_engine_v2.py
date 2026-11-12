@@ -21,6 +21,9 @@ CAL7 = pd.date_range(BTC_RAW.index[0], BTC_RAW.index[-1])
 BTC = BTC_RAW.reindex(CAL7).ffill(); SOL = SOL_RAW.reindex(CAL7).ffill()
 REAL = {"SOLT": _ld("SOLT", "adj_close"), "BITU": _ld("BITU", "adj_close")}
 US = pd.DatetimeIndex(pd.read_csv(SPY, parse_dates=["date"])["date"]); US = US[(US >= CAL7[0]) & (US <= CAL7[-1])]
+# SPY 달력이 크립토 자료보다 뒤처지면(연구 브랜치는 SPY 가 매일 갱신되지 않음) 평일로 이어 붙인다. 미국 휴일은 ETF 실제 봉이 없으면 수익 0 으로 처리된다.
+if US[-1] < CAL7[-1]:
+    US = US.append(pd.bdate_range(US[-1] + pd.Timedelta(days=1), CAL7[-1]))
 SPOT = {"SOLT": SOL, "BITU": BTC}
 DRAG = {"SOLT": 0.20, "BITU": 0.16}       # 실측 연간 괴리
 FEE_ONLY = {"SOLT": 0.0185, "BITU": 0.0095}
