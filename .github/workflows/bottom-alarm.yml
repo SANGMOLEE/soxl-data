@@ -48,6 +48,7 @@ jobs:
                   f"- 가격 ${s['price']:,}, 점수 {s['score']} [{s['conditions_on']}], 단계 {s['level']}\n"
                   f"- 저점 구간(1차 매수 신호): {s['zone']} / 시간·낙폭 조건: {s['gate']}\n"
                   f"- 반전 신호: 점수 정점 통과 {s['rev_peak']}, 5일 종가 고점 돌파 {s['rev_break']}\n"
+                  f"- MVRV {s['mvrv']} (실현가격 ${s['realized_price']:,}), 온체인 저점 구간 {s['onchain_zone']}\n"
                   f"- 일간 RSI {s['rsi_d']}, 주간 RSI {s['rsi_w']}, 200일선 대비 {s['vs_ma200']:+.1%}, 200주선 대비 {s['vs_ma200w']:+.1%}, 고점 대비 {s['dd_ath']:+.1%}\n\n"
                   "자동 생성. 기준: research/bottom_detector.py")
           subprocess.run(["gh", "issue", "create", "--title", title, "--body", body], check=True)

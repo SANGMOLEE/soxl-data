@@ -11,7 +11,16 @@
 """
 import os, sys, json, numpy as np, pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__)); D = os.path.join(HERE, "..", "data", "crypto", "BTCUSD.csv")
-REALIZED_PRICE = 53000.0   # 실현가격(전체 평균 매입단가) 수동 입력값. 출처: Coin Metrics·CryptoQuant 2026-11 초 52~54k. 온체인 자료가 저장소에 없어 수동 갱신.
+ONCHAIN = os.path.join(HERE, "..", "data", "crypto", "BTC_ONCHAIN.csv")   # scripts/fetch_onchain.py (Coin Metrics 커뮤니티 API)
+def onchain():
+    """최신 실현가격(전체 평균 매입단가)과 MVRV 이력. 파일이 없으면 수동값."""
+    if os.path.exists(ONCHAIN):
+        o = pd.read_csv(ONCHAIN, parse_dates=["date"]).set_index("date").sort_index()
+        o["z"] = (o.mcap - o.mcap / o.mvrv) / o.mcap.expanding().std()
+        return o
+    return None
+_O = onchain()
+REALIZED_PRICE = float(_O.realized_price.iloc[-1]) if _O is not None else 53000.0
 BOTTOMS = {"2015-01-14": "2015", "2018-12-15": "2018", "2020-03-12": "2020 코로나", "2022-11-21": "2022", "2026-06-30": "2026 후보"}
 
 def rsi(s, n=14):
@@ -75,7 +84,7 @@ def trigger_levels(F):
     """현재 기준으로 각 조건이 켜지는 가격(근사). 이동평균·고점은 오늘 값 고정."""
     x = F.iloc[-1]
     return {"C 200일선 -20%": x.ma200 * 0.80, "D 200주선 +5%": x.ma1400 * 1.05, "E 30일 고점 -25%": x.hi30 * 0.75,
-            "F 7일 -15%": F.close.iloc[-8] * 0.85, "H 사상최고가 -50%": x.ath * 0.50, "6월 저점(종가)": 58558.86, "실현가격(수동)": REALIZED_PRICE}
+            "F 7일 -15%": F.close.iloc[-8] * 0.85, "H 사상최고가 -50%": x.ath * 0.50, "6월 저점(종가)": 58558.86, "MVRV 1.2": REALIZED_PRICE * 1.2, "MVRV 1.1": REALIZED_PRICE * 1.1, "MVRV 1.0 (실현가격)": REALIZED_PRICE}
 
 if __name__ == "__main__":
     F = features(); c = F.close
@@ -106,11 +115,14 @@ if __name__ == "__main__":
     state = dict(date=str(F.index[-1].date()), price=round(float(x.close)), score=int(x.score), level=int(x.level), conditions_on=on,
                  gate=bool(x.gate), zone=bool(x.zone), rev_peak=bool(x.rev_peak), rev_break=bool(x.rev_break), days_since_ath=int(x.days_ath),
                  zone_7d=bool(F.zone.iloc[-7:].any()), oversold=bool(x.rsi_d <= 30),
-                 alarm=bool(x.zone or x.level >= 2 or ((x.rev_peak or x.rev_break) and F.zone.iloc[-30:].any())),
-                 notice=bool(x.level >= 1 or x.rsi_d <= 30 or x.close <= 58558.86 * 1.05), next_prices=scan,
+                 alarm=bool(x.zone or x.level >= 2 or ((x.rev_peak or x.rev_break) and F.zone.iloc[-30:].any()) or x.close <= REALIZED_PRICE * 1.1),
+                 notice=bool(x.level >= 1 or x.rsi_d <= 30 or x.close <= 58558.86 * 1.05 or x.close <= REALIZED_PRICE * 1.2), next_prices=scan,
+                 mvrv=round(float(x.close) / REALIZED_PRICE, 3), realized_price=round(REALIZED_PRICE), onchain_date=str(_O.index[-1].date()) if _O is not None else "manual",
+                 mvrv_z=round(float(_O.z.iloc[-1]), 2) if _O is not None else None, onchain_zone=bool(x.close <= REALIZED_PRICE), onchain_near=bool(x.close <= REALIZED_PRICE * 1.1),
                  rsi_d=round(float(x.rsi_d), 1), rsi_w=round(float(x.rsi_w), 1), vs_ma200=round(float(x.mayer), 4), vs_ma200w=round(float(x.w200), 4),
                  dd30=round(float(x.dd30), 4), r7=round(float(x.r7), 4), dd_ath=round(float(x.ddath), 4), ma200=round(float(x.ma200)), ma200w=round(float(x.ma1400)),
                  trigger_prices={k: round(float(v)) for k, v in T.items()}, max_level_7d=int(F.level.iloc[-7:].max()), max_score_7d=int(F.score.iloc[-7:].max()),
                  near_realized=bool(x.close <= REALIZED_PRICE * 1.05), near_june_low=bool(x.close <= 58558.86 * 1.05))
     json.dump(state, open(os.path.join(HERE, "alarm_state.json"), "w"), ensure_ascii=False, indent=1)
+    print(f"   온체인: MVRV {state['mvrv']} (Z {state['mvrv_z']}), 실현가격 ${state['realized_price']:,} ({state['onchain_date']}) | MVRV 1.2 ${REALIZED_PRICE*1.2:,.0f}, 1.1 ${REALIZED_PRICE*1.1:,.0f}, 1.0 ${REALIZED_PRICE:,.0f}")
     print("   alarm_state.json 기록:", state["level"], state["score"], state["conditions_on"])

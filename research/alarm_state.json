@@ -18,6 +18,12 @@
   "level2": 62000,
   "zone": 62000
  },
+ "mvrv": 1.351,
+ "realized_price": 53884,
+ "onchain_date": "2026-11-11",
+ "mvrv_z": 0.64,
+ "onchain_zone": false,
+ "onchain_near": false,
  "rsi_d": 32.6,
  "rsi_w": 45.8,
  "vs_ma200": -0.0042,
@@ -34,7 +40,9 @@
   "F 7일 -15%": 64551,
   "H 사상최고가 -50%": 62376,
   "6월 저점(종가)": 58559,
-  "실현가격(수동)": 53000
+  "MVRV 1.2": 64661,
+  "MVRV 1.1": 59272,
+  "MVRV 1.0 (실현가격)": 53884
  },
  "max_level_7d": 0,
  "max_score_7d": 0,
