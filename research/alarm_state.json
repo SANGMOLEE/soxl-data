@@ -1,0 +1,43 @@
+{
+ "date": "2026-11-12",
+ "price": 72784,
+ "score": 0,
+ "level": 0,
+ "conditions_on": "",
+ "gate": false,
+ "zone": false,
+ "rev_peak": false,
+ "rev_break": false,
+ "days_since_ath": 402,
+ "zone_7d": false,
+ "oversold": false,
+ "alarm": false,
+ "notice": false,
+ "next_prices": {
+  "level1": 64500,
+  "level2": 62000,
+  "zone": 62000
+ },
+ "rsi_d": 32.6,
+ "rsi_w": 45.8,
+ "vs_ma200": -0.0042,
+ "vs_ma200w": 0.0728,
+ "dd30": -0.1337,
+ "r7": -0.0416,
+ "dd_ath": -0.4166,
+ "ma200": 73088,
+ "ma200w": 67842,
+ "trigger_prices": {
+  "C 200일선 -20%": 58471,
+  "D 200주선 +5%": 71234,
+  "E 30일 고점 -25%": 63009,
+  "F 7일 -15%": 64551,
+  "H 사상최고가 -50%": 62376,
+  "6월 저점(종가)": 58559,
+  "실현가격(수동)": 53000
+ },
+ "max_level_7d": 0,
+ "max_score_7d": 0,
+ "near_realized": false,
+ "near_june_low": false
+}

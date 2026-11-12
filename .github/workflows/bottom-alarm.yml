@@ -1,0 +1,53 @@
+name: bottom-alarm
+# 비트코인 저점 탐지 알람: 자료 갱신 → 탐지기 실행 → research/alarm_state.json 기록 → 알람이면 GitHub 이슈 생성(메일 통지).
+# 주의: schedule 은 기본 브랜치(main)에 이 파일이 있을 때만 돈다. 연구 브랜치에서는 수동 실행(workflow_dispatch)과 push 로만 실행된다.
+on:
+  schedule:
+    - cron: '7 0,6,12,18 * * *'   # 09:07, 15:07, 21:07, 03:07 KST
+  workflow_dispatch:
+  push:
+    branches: [ccr-b178db42-c7x4uo]
+    paths:
+      - research/bottom_detector.py
+      - .github/workflows/bottom-alarm.yml
+permissions:
+  contents: write
+  issues: write
+jobs:
+  alarm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_crypto_once.py
+      - run: python research/bottom_detector.py | tail -8
+      - name: 상태 저장
+        run: |
+          git config user.name "collector-bot"
+          git config user.email "collector-bot@users.noreply.github.com"
+          git add data/crypto research/alarm_state.json
+          git diff --staged --quiet || { git commit -m "alarm: $(date -u +%F\ %H:%M) state"; git push origin HEAD:${GITHUB_REF_NAME}; }
+      - name: 알람이면 이슈 생성
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          s = json.load(open("research/alarm_state.json"))
+          if not s.get("alarm"): print("알람 없음", s["level"], s["score"]); raise SystemExit
+          title = f"[저점 알람] {s['date']} BTC ${s['price']:,} 단계 {s['level']} 점수 {s['score']}"
+          out = subprocess.run(["gh", "issue", "list", "--state", "open", "--search", f"[저점 알람] {s['date']} in:title", "--json", "number"], capture_output=True, text=True).stdout
+          if json.loads(out or "[]"): print("이미 통지됨"); raise SystemExit
+          body = ("비트코인 저점 탐지기 알람.\n\n"
+                  f"- 가격 ${s['price']:,}, 점수 {s['score']} [{s['conditions_on']}], 단계 {s['level']}\n"
+                  f"- 저점 구간(1차 매수 신호): {s['zone']} / 시간·낙폭 조건: {s['gate']}\n"
+                  f"- 반전 신호: 점수 정점 통과 {s['rev_peak']}, 5일 종가 고점 돌파 {s['rev_break']}\n"
+                  f"- 일간 RSI {s['rsi_d']}, 주간 RSI {s['rsi_w']}, 200일선 대비 {s['vs_ma200']:+.1%}, 200주선 대비 {s['vs_ma200w']:+.1%}, 고점 대비 {s['dd_ath']:+.1%}\n\n"
+                  "자동 생성. 기준: research/bottom_detector.py")
+          subprocess.run(["gh", "issue", "create", "--title", title, "--body", body], check=True)
+          PY
