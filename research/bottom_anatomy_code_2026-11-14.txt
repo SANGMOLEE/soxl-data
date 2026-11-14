@@ -272,6 +272,26 @@ def reference_class(F, FY, today_low="2026-07-01"):
     run = int((FY.close < FY.close.rolling(200).mean())[::-1].cumprod().sum())
     P(f"   현재 200일선 아래 연속 종가 일수(진행 중 봉 포함): {run}일")
 
+# ───────────────────────── 10. 저점 뒤 반등 → 고점 대비 -22% 되돌림: 거기서 멈췄는가 ─────────────────────────
+def pullback_class(F, depth=0.22):
+    c, h, l = F.close, F.high, F.low; lows = []
+    for d in l.index[200:-10]:
+        if l[d] > l[d - TD(days=45):d + TD(days=45)].min(): continue
+        if l[d] / h[d - TD(days=90):d].max() - 1 > -0.25 or l[d] / F.ath[d] - 1 > -0.45: continue
+        if lows and (d - lows[-1]).days < 10: continue
+        lows.append(d)
+    P(f"\n== 10. 약세 구간 주요 저점 뒤 +40% 이상 반등했다가 반등 고점 대비 -{depth:.0%} 되돌림에 처음 닿은 시점의 상태와 그 뒤 결과")
+    P("   저점 | 반등 고점(저점 대비) | 되돌림 도달일(저점 후 일수) | 상승분 반납 | 저점 대비 | 200일선 | 되돌림 최종 깊이 | 결과")
+    for d in lows:
+        L = l[d]; run = h[d:d + TD(days=400)].cummax(); hit = None
+        for t in run.index[1:]:
+            if l[t] < L: break
+            if run[t] / L - 1 >= 0.40 and l[t] <= run[t] * (1 - depth): hit = t; break
+        if hit is None: continue
+        H = run[hit]; hd = h[d:hit].idxmax(); after = F.loc[hit:hit + TD(days=500)]; rec = after.index[after.high > H]; end = rec[0] if len(rec) else after.index[-1]
+        PL = l[hit:end].min(); res = f"저점 깨짐 {PL / L - 1:+.0%}" if PL < L else (f"반등 고점 재돌파 {end.date()}" if len(rec) else "진행 중")
+        P(f"   {d.date()} | {hd.date()} +{H / L - 1:.0%} | {hit.date()} ({(hit - d).days}일) | {depth * H / (H - L):.0%} | {H * (1 - depth) / L - 1:+.0%} | {'아래' if c[hit] < F.ma200[hit] else '위'} | {PL / H - 1:+.0%} | {res}")
+
 # ───────────────────────── 8. 현재 상태 ─────────────────────────
 def now_state(F, SM, mv):
     x = F.iloc[-1]; s = SM.iloc[-1]; d = F.index[-1]; prev = F.close.iloc[-2]
@@ -305,7 +325,7 @@ if __name__ == "__main__":
         last = d; fut = F.low[d + TD(days=1):d + TD(days=365)]; more = min(fut.min() / F.close[d] - 1, 0) if len(fut) else np.nan
         P(f"   {d.date()} 종가 ${F.close[d]:,.0f} | 저가 ${F.low[d]:,.0f} vs L ${SM.L[d]:,.0f} ({F.low[d] / SM.L[d] - 1:+.1%}) | 거래량 {F.vr[d]:.1f}배 | RSI {F.rsi[d]:.0f} (투매 최저 {SM.Rmin[d]:.0f}) | 피날레 후 {int(SM.since_fin[d])}일 | 추가 하락 {more:+.0%}")
     if "--no-chart" not in sys.argv: charts(F, rows)
-    reference_class(unified(), F)
+    FU = unified(); reference_class(FU, F); pullback_class(FU)
     now_state(F, SM, mv)
     open(os.path.join(OUTD, "bottom_anatomy.txt"), "w").write("\n".join(LINES) + "\n")
 
