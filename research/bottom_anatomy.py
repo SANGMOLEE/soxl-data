@@ -210,6 +210,60 @@ def charts(F, rows):
     fig.text(0.01, 0.945, "Daily candles, 40 days before to 14 days after the low. Red = up day, blue = down day. Lower strips: volume as a multiple of the prior 30-day median (coloured when 1.5x or more).", fontsize=9, color="#52514e")
     p = os.path.join(CH, "bottom_anatomy_cycles.png"); fig.savefig(p, dpi=150, facecolor=SURF, bbox_inches="tight"); plt.close(fig); P(f"\n차트 저장: {os.path.relpath(p, os.path.join(HERE, '..'))}")
 
+# ───────────────────────── 9. 약세장 주요 저점 전수표: 지켜진 저점 vs 깨진 저점 ─────────────────────────
+def unified():
+    """2010-07~ 통합 일봉: 2011-08-18 이전은 Coin Metrics 종가, 이후 Bitstamp."""
+    bs = load_daily(os.path.join(EX, "BTC_BITSTAMP_1D.csv")); cm = pd.read_csv(os.path.join(DC, "BTC_ONCHAIN.csv"), parse_dates=["date"]).set_index("date")
+    pre = cm.price[:bs.index[0] - TD(days=1)]; P0 = pd.DataFrame({"open": pre.shift(1).fillna(pre), "high": pre, "low": pre, "close": pre, "volume": np.nan})
+    U = pd.concat([P0, bs[["open", "high", "low", "close", "volume"]]]); U = U[~U.index.duplicated()].sort_index()
+    F = feats(U); F["ma200"] = F.close.rolling(200).mean(); F["mvrv"] = cm.mvrv.reindex(F.index).ffill(); return F
+
+def reference_class(F, FY, today_low="2026-07-01"):
+    c, h, l = F.close, F.high, F.low; lows = []
+    for d in l.index[200:-10]:
+        if l[d] > l[d - TD(days=45):d + TD(days=45)].min(): continue
+        if l[d] / h[d - TD(days=90):d].max() - 1 > -0.25 or l[d] / F.ath[d] - 1 > -0.45: continue
+        if lows and (d - lows[-1]).days < 10: continue
+        lows.append(d)
+    tl = pd.Timestamp(today_low); N = (F.index[-1] - tl).days
+    P(f"\n== 9. 약세 구간 주요 저점 {len(lows)}곳 전수 (2011~, 앞뒤 45일 최저가·90일 고점 대비 -25% 이하·고점 대비 -45% 이하). 지켜짐 = 이후 1년 동안 그 저가가 안 깨짐")
+    P(f"   오늘은 {tl.date()} 저점에서 {N}일째. 'N일 뒤' 열은 각 저점에서 같은 {N}일이 지난 시점의 상태")
+    P("   저점일 | 저가 | 고점대비 | 저점일 MVRV | 180일 내 5σ 음봉 | 저점일 거래량(Yahoo)·RSI | N일 뒤 가격(저점 대비)·200일선 | 결과")
+    rows = []
+    for d in lows:
+        fut = l[d + TD(days=1):d + TD(days=365)]; br = fut[fut < l[d]]; bd = (br.index[0] - d).days if len(br) else None
+        deeper = min(l[d + TD(days=1):d + TD(days=730)].min() / l[d] - 1, 0) if len(fut) else np.nan
+        f180 = F.fin[d - TD(days=180):d]; lf = f180[f180].index[-1] if f180.any() else None
+        t = d + TD(days=N); ok = t <= F.index[-1]; px = c.asof(t) / l[d] - 1 if ok else np.nan; b200 = bool(c.asof(t) < F.ma200.asof(t)) if ok else None
+        alive = bd is None or bd > N; vy = FY.vr.get(d, np.nan)
+        mv = l[d] / (c[d] / F.mvrv[d]) if F.mvrv[d] == F.mvrv[d] else np.nan
+        cur = d == tl
+        res = "진행 중" if cur else ("지켜짐" if bd is None else f"깨짐 {bd}일 뒤, 2년 내 최대 {deeper:+.0%}")
+        rows.append(dict(d=d, held=bd is None, cur=cur, fin=lf is not None, mv=mv, alive=alive, px=px, b200=b200, bd=bd, deeper=deeper))
+        P(f"   {d.date()} | ${l[d]:>9,.1f} | {l[d] / F.ath[d] - 1:+.0%} | {mv:.2f} | {str(lf.date()) if lf is not None else '    -     '} | {('%.1f배' % vy) if vy == vy else '  - '} RSI {F.rsi[d]:.0f} | "
+          + (f"{px:+5.0%} {'200일선 아래' if b200 else '200일선 위'}" if ok and alive else ("이미 깨짐" if ok else "  -  ")) + f" | {res}")
+    R = pd.DataFrame(rows); H = R[~R.cur]
+    def cnt(m, label):
+        x = H[m]; br = x[~x.held]
+        P(f"   {label}: 지켜짐 {int(x.held.sum())}/{len(x)}" + (f", 깨진 경우 추가 하락(2년 내 최대) {', '.join(format(v, '+.0%') for v in br.deeper)}" if len(br) else ""))
+    P("   ── 집계")
+    cnt(H.d == H.d, "(가) 전체")
+    cnt(H.fin, "(나) 180일 안에 5σ 음봉이 선행한 저점"); cnt(~H.fin, "(다) 5σ 음봉 없이 만든 저점")
+    cnt(H.mv < 1, "(라) 저점일 MVRV 1 미만"); cnt(H.mv >= 1, "(마) 저점일 MVRV 1 이상")
+    S = H[H.alive & H.px.notna()]
+    cnt(H.index.isin(S.index), f"(바) {N}일째까지 안 깨지고 살아남은 저점")
+    cnt(H.index.isin(S[(S.px < 0.60) & (S.b200 == True)].index), f"(사) 그중 {N}일째 가격이 저점 +60% 미만이고 200일선 아래")
+    cnt(H.index.isin(S[(S.px < 0.20) & (S.b200 == True)].index), f"(아) 그중 {N}일째 가격이 저점 +20% 미만이고 200일선 아래")
+    cnt(H.index.isin(S[(S.px >= 0.60) | (S.b200 == False)].index), f"(자) 그중 {N}일째 가격이 저점 +60% 이상이거나 200일선 위")
+    P("   ── 확정된 사이클 저점 뒤, 100일이 지난 다음 가격이 저점에 가장 가까이 돌아온 정도 (저점 +100~500일 최저 저가)")
+    for d in ("2011-11-18", "2015-01-14", "2018-12-15", "2022-11-21"):
+        d = pd.Timestamp(d); lo = l[d - TD(days=3):d + TD(days=3)].min(); w = l[d + TD(days=100):d + TD(days=500)]
+        P(f"      {d.date()} 저가 ${lo:,.0f} → 가장 가까웠던 날 {w.idxmin().date()} ${w.min():,.0f} (저점 대비 {w.min() / lo - 1:+.0%})")
+    lo = l[tl]; w = l[tl + TD(days=100):]
+    P(f"      {tl.date()} 저가 ${lo:,.0f} → 현재까지 {w.idxmin().date()} ${w.min():,.0f} (저점 대비 {w.min() / lo - 1:+.0%})")
+    run = int((FY.close < FY.close.rolling(200).mean())[::-1].cumprod().sum())
+    P(f"   현재 200일선 아래 연속 종가 일수(진행 중 봉 포함): {run}일")
+
 # ───────────────────────── 8. 현재 상태 ─────────────────────────
 def now_state(F, SM, mv):
     x = F.iloc[-1]; s = SM.iloc[-1]; d = F.index[-1]; prev = F.close.iloc[-2]
@@ -243,5 +297,6 @@ if __name__ == "__main__":
         last = d; fut = F.low[d + TD(days=1):d + TD(days=365)]; more = min(fut.min() / F.close[d] - 1, 0) if len(fut) else np.nan
         P(f"   {d.date()} 종가 ${F.close[d]:,.0f} | 저가 ${F.low[d]:,.0f} vs L ${SM.L[d]:,.0f} ({F.low[d] / SM.L[d] - 1:+.1%}) | 거래량 {F.vr[d]:.1f}배 | RSI {F.rsi[d]:.0f} (투매 최저 {SM.Rmin[d]:.0f}) | 피날레 후 {int(SM.since_fin[d])}일 | 추가 하락 {more:+.0%}")
     if "--no-chart" not in sys.argv: charts(F, rows)
+    reference_class(unified(), F)
     now_state(F, SM, mv)
     open(os.path.join(OUTD, "bottom_anatomy.txt"), "w").write("\n".join(LINES) + "\n")
