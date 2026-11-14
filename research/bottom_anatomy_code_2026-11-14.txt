@@ -1,0 +1,457 @@
+비트코인 저점 해부 연구 코드 묶음 (2026-11-14)
+실행 순서: (1) GitHub Actions 'bottom-extra' 로 자료 수집 → (2) python research/bottom_anatomy.py
+
+
+====================================================================================================
+# 파일: research/bottom_anatomy.py
+====================================================================================================
+
+# -*- coding: utf-8 -*-
+"""비트코인 저점 해부: '피날레 음봉'은 실제였는가, 저점 당일에는 무엇이 있었는가.
+자료: data/crypto/BTCUSD.csv (Yahoo 일봉 2014-09~), data/crypto/extra/ (Bitstamp 일봉·시간봉 2011-08~, 공포탐욕, 펀딩비,
+      Coin Metrics 거래소 유입·해시레이트·발행액, Deribit DVOL), data/crypto/BTC_ONCHAIN.csv (MVRV).
+정의(모두 그날 종가까지의 정보만 사용):
+  z60      = 그날 종가 수익률 ÷ 직전 60일 일간 수익률 표준편차
+  투매일    = z60 ≤ -2.5 이고 거래량 ≥ 직전 30일 중앙값 × 1.5
+  피날레 음봉 = z60 ≤ -5 이고 종가가 사상 최고가 대비 -45% 이하 (약세 구간의 5σ 음봉)
+  조용한 재이탈 = 피날레 음봉 뒤 180일 안, 마지막 투매일에서 7일 이상 지났고, 그날 저가가 투매 저가(L)의 +3% 이내 또는 그 아래,
+                거래량 ≤ 30일 중앙값 × 1.3, 일간 RSI ≥ 투매 구간 최저 RSI + 5
+실행: python research/bottom_anatomy.py   → research/output/bottom_anatomy.txt, research/charts/bottom_anatomy_*.png, research/bottom_phase_state.json
+"""
+import os, sys, json, numpy as np, pandas as pd
+HERE = os.path.dirname(os.path.abspath(__file__)); DC = os.path.join(HERE, "..", "data", "crypto"); EX = os.path.join(DC, "extra")
+OUTD = os.path.join(HERE, "output"); os.makedirs(OUTD, exist_ok=True); CH = os.path.join(HERE, "charts"); os.makedirs(CH, exist_ok=True)
+LINES = []
+def P(*a):
+    s = " ".join(str(x) for x in a); print(s); LINES.append(s)
+def rsi(s, n=14):
+    d = s.diff(); u = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean(); dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean(); return 100 - 100 / (1 + u / dn)
+TD = pd.Timedelta
+
+def load_daily(path):
+    b = pd.read_csv(path, parse_dates=["date"]).set_index("date").sort_index(); return b[~b.index.duplicated()]
+
+def feats(b):
+    F = b[["open", "high", "low", "close", "volume"]].copy(); c = F.close
+    F["ret"] = c.pct_change(); F["sd60"] = F.ret.rolling(60).std().shift(1); F["z"] = F.ret / F.sd60
+    F["vr"] = F.volume / F.volume.rolling(30).median().shift(1); F["rsi"] = rsi(c)
+    F["ath"] = F.high.cummax(); F["dd"] = c / F.ath - 1; F["zone"] = F.dd <= -0.45
+    F["cap"] = (F.z <= -2.5) & (F.vr >= 1.5); F["fin"] = (F.z <= -5) & F.zone
+    F["hi30"] = F.high.rolling(30).max(); F["fall30"] = F.low / F.hi30 - 1
+    return F
+
+def state_machine(F, window=180):
+    """그날까지의 정보로 본 국면. 0 피날레 없음 / 1 투매 진행(마지막 투매일 7일 미만) / 2 재시험 대기 / 3 조용한 재이탈 신호."""
+    idx = F.index; fin_days = list(F.index[F.fin]); cap_days = list(F.index[F.cap])
+    out = pd.DataFrame(index=idx, columns=["phase", "L", "Ldate", "Rmin", "since_cap", "since_fin", "cl_start"]); out["phase"] = 0
+    fi = 0; ci = 0; last_fin = None; cl_start = None; last_cap = None
+    lows = F.low.values; rs = F.rsi.values; pos = {d: i for i, d in enumerate(idx)}
+    for i, d in enumerate(idx):
+        while fi < len(fin_days) and fin_days[fi] <= d:
+            f = fin_days[fi]
+            if last_fin is None or (f - last_fin).days > 30: cl_start = f
+            last_fin = f; fi += 1
+        while ci < len(cap_days) and cap_days[ci] <= d: last_cap = cap_days[ci]; ci += 1
+        if last_fin is None or (d - last_fin).days > window: continue
+        s = pos[cl_start]
+        if i <= s: out.iat[i, 0] = 1; out.iat[i, 5] = 0; out.iat[i, 6] = cl_start; continue
+        seg = lows[s:i]; k = int(np.argmin(seg)); L = seg[k]; Rmin = np.nanmin(rs[s:i])
+        since = (d - last_cap).days if last_cap is not None else 999
+        quiet = bool(F.zone.iat[i]) and since >= 7 and lows[i] <= L * 1.03 and F.vr.iat[i] <= 1.3 and rs[i] >= Rmin + 5
+        out.iloc[i] = [3 if quiet else (1 if since < 7 else 2), L, idx[s + k], Rmin, since, (d - last_fin).days, cl_start]
+    return out
+
+# ───────────────────────── 1. 사이클 저점별 일봉 해부 ─────────────────────────
+CYCLES = [  # (이름, 탐색 시작, 탐색 끝, 사건)
+    ("2015-01", "2014-12-15", "2015-02-15", "비트스탬프 해킹(1/4~5, 1.9만 BTC)·거래 중단, 300달러 지지 붕괴 후 마진콜 연쇄"),
+    ("2018-12", "2018-11-01", "2019-01-15", "6,000달러 지지선(9개월) 붕괴, 비트코인캐시 해시 전쟁(11/15), 채굴자 항복"),
+    ("2020-03", "2020-03-01", "2020-04-01", "코로나 유동성 위기, 비트멕스 강제청산 연쇄·3/13 02시(UTC) 거래소 장애 직후 반등"),
+    ("2022-06", "2022-06-01", "2022-07-15", "루나 붕괴 여파, 셀시우스 출금 중단(6/12), 3AC 파산, 연준 75bp 인상(6/15). 사이클 1차 저점"),
+    ("2022-11", "2022-11-01", "2022-12-31", "FTX 붕괴(11/8~9 바이낸스 인수 철회), 11/21 제네시스 전염 우려 속 조용한 신저가"),
+    ("2026-02", "2026-01-20", "2026-03-15", "귀금속 급락발 마진콜(1/30~31)·ETF 유출 뒤 청산 연쇄, 실현손실 사상 최대(보도). 사이클 1차 저점"),
+    ("2026-07", "2026-05-25", "2026-08-01", "6/5 고용지표·스트래티지 매도 보도로 1차 투매, 6/25 PCE 물가, 7/1 조용한 신저가"),
+]
+def cycle_table(F):
+    P("\n== 1. 사이클 저점별 일봉 해부 (Yahoo 일봉). '최대 음봉' = 저점 이전 45일 안에서 σ배수(z60)가 가장 큰 음봉")
+    rows = []
+    for name, a, z, what in CYCLES:
+        w = F.loc[a:z]; ld = w.low.idxmin(); lo = w.low.min(); pre = F.loc[ld - TD(days=45):ld]
+        wd = pre.z.idxmin(); x = F.loc[wd]; y = F.loc[ld]
+        clv = (y.close - y.low) / (y.high - y.low)
+        typ = "A 투매형(음봉 당일·다음날이 저점)" if (ld - wd).days <= 1 else "B 재이탈형(음봉 뒤 조용한 신저가)"
+        rows.append(dict(name=name, low_date=ld, low=lo, worst_date=wd, gap=(ld - wd).days, typ=typ))
+        P(f"\n[{name}] {what}")
+        P(f"  최대 음봉 {wd.date()}({wd.day_name()[:3]}): 종가 {x.ret:+.1%} (z60 {x.z:.1f}σ), 일중 저가 기준 {x.low / F.close.shift(1)[wd] - 1:+.1%}, 거래량 {x.vr:.1f}배, 일간 RSI {x.rsi:.0f}, 30일 고점 대비 {x.fall30:+.0%}")
+        P(f"  일중 최저 {ld.date()}({ld.day_name()[:3]}) ${lo:,.0f}: 그날 종가 {y.ret:+.1%} (z60 {y.z:+.1f}σ), 거래량 {y.vr:.1f}배, RSI {y.rsi:.0f}, 종가 위치(0=저가,1=고가) {clv:.2f}")
+        P(f"  → 최대 음봉에서 {(ld - wd).days}일 뒤, 그 음봉의 저가 대비 {lo / x.low - 1:+.1%}, 종가 대비 {lo / x.close - 1:+.1%}  ⇒ {typ}")
+        P(f"  저점 이후 종가: 1일 {F.close.asof(ld + TD(days=1)) / lo - 1:+.0%}, 7일 {F.close.asof(ld + TD(days=7)) / lo - 1:+.0%}, 30일 {F.close.asof(ld + TD(days=30)) / lo - 1:+.0%}")
+    return rows
+
+# ───────────────────────── 2. 시간봉 해부 ─────────────────────────
+HOURLY = [("2011-11", "2011-11-10", "2011-11-25"), ("2015-01", "2015-01-10", "2015-01-20"), ("2015-08", "2015-08-15", "2015-08-28"), ("2018-11 1차", "2018-11-18", "2018-11-28"),
+          ("2018-12 최종", "2018-12-05", "2018-12-20"), ("2020-03", "2020-03-10", "2020-03-20"), ("2021-05", "2021-05-15", "2021-05-25"), ("2022-05", "2022-05-08", "2022-05-15"),
+          ("2022-06", "2022-06-10", "2022-06-22"), ("2022-11 1차", "2022-11-07", "2022-11-12"), ("2022-11 최종", "2022-11-15", "2022-11-25"), ("2024-08", "2024-08-03", "2024-08-08"),
+          ("2025-04", "2025-04-05", "2025-04-10"), ("2025-11", "2025-11-15", "2025-11-25"), ("2026-02", "2026-02-03", "2026-02-10"), ("2026-06 1차", "2026-06-01", "2026-06-08"), ("2026-07 최종", "2026-06-20", "2026-07-05")]
+def hourly_table():
+    H = pd.read_csv(os.path.join(EX, "BTC_BITSTAMP_1H.csv.gz"), parse_dates=["date"]).set_index("date").sort_index()
+    P("\n== 2. 저점 '그 시간'의 해부 (Bitstamp 시간봉, 시각은 UTC·괄호는 한국시간). 거래량 배수 = 직전 30일 시간당 거래량 중앙값 대비")
+    P("   저점 | 저점 시각 | 저점가 | 72시간 고점 대비 | 직전 96시간 최대 시간음봉(저점 몇 시간 전) | 최대 거래량 시간(배수, 저점 몇 시간 전) | 저점 시간 거래량 | 반등 +1h / +24h / +72h")
+    for k, a, z in HOURLY:
+        w = H.loc[a:z]; lo = w.low.idxmin(); L = w.low.min(); vmed = H.volume.loc[lo - TD(days=30):lo - TD(days=3)].median()
+        pre = H.loc[lo - TD(hours=96):lo]; hr = pre.close / pre.open - 1; wh = hr.idxmin(); vh = pre.volume.idxmax(); hi72 = H.high.loc[lo - TD(hours=72):lo].max()
+        rec = lambda n: H.close.asof(lo + TD(hours=n)) / L - 1
+        P(f"   {k:11s} | {lo:%Y-%m-%d %H시}({lo.day_name()[:3]}, 한국 {(lo + TD(hours=9)):%d일 %H시}) | ${L:>7,.0f} | {L / hi72 - 1:+4.0%} | {hr.min():+5.1%} ({int((lo - wh).total_seconds() / 3600)}h 전) | {pre.volume.max() / vmed:3.0f}배 ({int((lo - vh).total_seconds() / 3600)}h 전) | {H.volume[lo] / vmed:3.0f}배 | {rec(1):+5.1%} / {rec(24):+5.1%} / {rec(72):+5.1%}")
+
+# ───────────────────────── 3. 5σ 음봉 사건 전수 ─────────────────────────
+def sigma_events(F, label, mv):
+    c, l = F.close, F.low
+    P(f"\n== 3. 약세 구간의 5σ 음봉 전수 조사 ({label}). 추가 하락 = 그날 종가 대비 이후 1년 최저 저가")
+    ev = F.index[F.fin]; res = []
+    for d in ev:
+        fut = l[d + TD(days=1):d + TD(days=365)]
+        if not len(fut): continue
+        more = min(fut.min() / c[d] - 1, 0); dl = (fut.idxmin() - d).days if fut.min() < c[d] else 0
+        f = lambda n: c.asof(d + TD(days=n)) / c[d] - 1 if d + TD(days=n) <= c.index[-1] else np.nan
+        res.append(more)
+        P(f"   {d.date()} ${c[d]:>9,.0f} | 종가 {F.ret[d]:+6.1%} = {F.z[d]:5.1f}σ | 거래량 {F.vr[d]:4.1f}배 | 고점대비 {F.dd[d]:+.0%} | 30일 고점대비(저가) {F.fall30[d]:+.0%} | RSI {F.rsi[d]:.0f} | MVRV {mv.asof(d):.2f} | 추가 하락 {more:+4.0%} ({dl}일 뒤) | 30일 {f(30):+4.0%} 90일 {f(90):+4.0%} 1년 {f(365):+5.0%}")
+    base = []
+    for d in c[F.zone].index:
+        fut = l[d + TD(days=1):d + TD(days=365)]
+        if len(fut) >= 300: base.append(min(fut.min() / c[d] - 1, 0))
+    base = np.array(base); res = np.array(res)
+    P(f"   → 5σ 음봉 종가 매수 n={len(res)}: 추가 하락 중앙값 {np.median(res):+.0%}, -10% 이내 {np.mean(res >= -0.10):.0%}, 최악 {res.min():+.0%}")
+    P(f"   → 기준선(약세 구간 아무 날 n={len(base)}): 추가 하락 중앙값 {np.median(base):+.0%}, -10% 이내 {np.mean(base >= -0.10):.0%}")
+    capm = []; last = None
+    for d in F.index[F.cap & F.zone]:
+        if last is not None and (d - last).days < 20: continue
+        last = d; fut = l[d + TD(days=1):d + TD(days=365)]
+        if len(fut): capm.append(min(fut.min() / c[d] - 1, 0))
+    capm = np.array(capm)
+    P(f"   → 비교: 일반 투매일(2.5σ·거래량 1.5배, 20일 간격) 종가 매수 n={len(capm)}: 추가 하락 중앙값 {np.median(capm):+.0%}, -10% 이내 {np.mean(capm >= -0.10):.0%}, 최악 {capm.min():+.0%}")
+
+# ───────────────────────── 4. 1막(투매) vs 2막(조용한 저점) 비교 ─────────────────────────
+def act_table(F):
+    oc = pd.read_csv(os.path.join(EX, "BTC_ONCHAIN_EXTRA.csv"), parse_dates=["date"]).set_index("date")
+    fng = pd.read_csv(os.path.join(EX, "FNG.csv"), parse_dates=["date"]).set_index("date").value.sort_index(); fng = fng[~fng.index.duplicated()]
+    fu = pd.read_csv(os.path.join(EX, "FUNDING_BINANCE.csv"), parse_dates=["date"]).set_index("date").rate.sort_index().resample("D").sum() * 1e4
+    dv = pd.read_csv(os.path.join(EX, "DVOL.csv"), parse_dates=["date"]).set_index("date").close
+    mv = pd.read_csv(os.path.join(DC, "BTC_ONCHAIN.csv"), parse_dates=["date"]).set_index("date").mvrv
+    fin = oc.FlowInExNtv; inz = (fin - fin.rolling(90).mean().shift(1)) / fin.rolling(90).std().shift(1); net = oc.FlowInExNtv - oc.FlowOutExNtv
+    puell = oc.IssTotUSD / oc.IssTotUSD.rolling(365).mean()
+    g = lambda s, d, f: f.format(s.asof(d)) if d >= s.dropna().index[0] else "  -"
+    PAIRS = [("2015 (A형, 2막 없음)", "2015-01-14", None), ("2018", "2018-11-20", "2018-12-15"), ("2020 (A형)", "2020-03-12", None), ("2022 여름", "2022-06-13", "2022-06-18"),
+             ("2022", "2022-11-09", "2022-11-21"), ("2026 겨울 (A형)", "2026-02-05", None), ("2026 여름", "2026-06-05", "2026-07-01")]
+    P("\n== 4. 1막(투매 절정일) 과 2막(조용한 최종 저점일) 의 지표 비교")
+    P("   날짜 | 일중 저가 | 종가 수익(σ) | 거래량 배수 | 일간 RSI | 거래소 유입 z(90일) | 7일 거래소 순유입 BTC | 공포탐욕 | 펀딩 당일 합(bp) | DVOL | MVRV | 퓨엘")
+    for nm, a, b in PAIRS:
+        P(f"  [{nm}]")
+        for tag, d in (("1막", a), ("2막", b)):
+            if d is None: continue
+            d = pd.Timestamp(d); x = F.loc[d]
+            P(f"   {tag} {d.date()} | ${x.low:>7,.0f} | {x.ret:+6.1%} ({x.z:+5.1f}σ) | {x.vr:4.1f}배 | {x.rsi:3.0f} | {g(inz, d, '{:+5.1f}')} | {net.loc[d - TD(days=6):d].sum():>+9,.0f} | {g(fng, d, '{:3.0f}')} | {g(fu, d, '{:+6.1f}')} | {g(dv, d, '{:3.0f}')} | {mv.asof(d):.2f} | {g(puell, d, '{:.2f}')}")
+    return mv
+
+# ───────────────────────── 5. 주요 스윙 저점 24곳 통계 ─────────────────────────
+def swing_stats(F):
+    c, h, l = F.close, F.high, F.low; rows = []
+    for d in l.index[90:-10]:
+        if l[d] > l[d - TD(days=45):d + TD(days=45)].min(): continue
+        if l[d] / h[d - TD(days=90):d].max() - 1 > -0.25: continue
+        pre = F.loc[d - TD(days=30):d]; wd = pre.z.idxmin()
+        rows.append(dict(date=d, gap=(d - wd).days, z=pre.z.min(), green=F.ret[d] > 0, clv=(c[d] - l[d]) / (h[d] - l[d]), vr=F.vr[d], rsi_div=F.rsi[d] - pre.rsi.min(), under=l[d] / l[wd] - 1))
+    S = pd.DataFrame(rows)
+    P(f"\n== 5. 주요 저점 {len(S)}곳 통계 (앞뒤 45일 최저가이면서 90일 고점 대비 -25% 이하, 2014-12~)")
+    P(f"   직전 30일 최대 음봉(σ 기준)과 저점의 간격: 같은 날 {int((S.gap == 0).sum())}곳, 1일 뒤 {int((S.gap == 1).sum())}곳, 2~8일 뒤 {int(((S.gap >= 2) & (S.gap <= 8)).sum())}곳, 9일 이상 뒤 {int((S.gap >= 9).sum())}곳")
+    P(f"   저점 당일이 양봉으로 끝난 곳 {int(S.green.sum())}/{len(S)}, 종가가 일중 범위 위쪽 절반에서 끝난 곳 {int((S.clv >= 0.5).sum())}/{len(S)}")
+    P(f"   저점 당일 거래량이 30일 중앙값의 1.5배 미만인 곳 {int((S.vr < 1.5).sum())}/{len(S)}, 저점일 RSI가 직전 30일 최저 RSI보다 5 이상 높은 곳(상승 다이버전스) {int((S.rsi_div >= 5).sum())}/{len(S)}")
+    P(f"   최대 음봉의 저가 대비 최종 저점 깊이: 중앙값 {S.under.median():+.1%}, 사분위 {S.under.quantile(.25):+.1%} ~ {S.under.quantile(.75):+.1%}")
+
+# ───────────────────────── 6. 국면 추적기 검증 ─────────────────────────
+def phase_backtest(F, SM, label):
+    c, l = F.close, F.low
+    P(f"\n== 6. 국면 추적기 검증 ({label}): 피날레 음봉 묶음별로 '종가 매수' 와 '조용한 재이탈 첫 신호' 를 최종 저점과 비교")
+    starts = sorted(set(SM.cl_start.dropna()))
+    for s in starts:
+        seg = SM[SM.cl_start == s]; end = seg.index[-1]; fins = F.index[(F.fin) & (F.index >= s) & (F.index <= end)]
+        fl = l[s:end + TD(days=1)].min(); fd = l[s:end + TD(days=1)].idxmin()
+        fut = l[fd:fd + TD(days=365)].min()
+        q = seg.index[seg.phase == 3]
+        qs = f"조용한 재이탈 첫 신호 {q[0].date()} 종가 ${c[q[0]]:,.0f} (구간 저점 대비 {c[q[0]] / fl - 1:+.0%}, 신호 {len(q)}일)" if len(q) else "조용한 재이탈 신호 없음(V자 반등형)"
+        P(f"   피날레 {', '.join(str(d.date()) for d in fins)} | 종가 ${c[fins[0]]:,.0f}" + (f" → ${c[fins[-1]]:,.0f}" if len(fins) > 1 else "")
+          + f" | 180일 구간 저점 {fd.date()} ${fl:,.0f} (첫 피날레 종가 대비 {fl / c[fins[0]] - 1:+.0%}, 마지막 피날레 종가 대비 {fl / c[fins[-1]] - 1:+.0%}, {(fd - fins[-1]).days}일 뒤)"
+          + f" | {qs} | 구간 저점이 이후 1년 안에 깨졌는가: {'예 ' + format(fut / fl - 1, '+.0%') if fut < fl * 0.999 else '아니오'}")
+
+# ───────────────────────── 7. 차트 ─────────────────────────
+def charts(F, rows):
+    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+    INK, MUTED, GRID, SURF, UP, DN = "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb", "#e34948", "#2a78d6"
+    plt.rcParams.update({"font.family": ["Inter", "DejaVu Sans"], "font.size": 9, "axes.edgecolor": "#c3c2b7", "axes.labelcolor": MUTED, "xtick.color": MUTED, "ytick.color": MUTED})
+    sel = [r for r in rows if r["name"] in ("2015-01", "2018-12", "2020-03", "2022-11", "2026-02", "2026-07")]
+    fig = plt.figure(figsize=(15, 10.4), facecolor=SURF); gs = fig.add_gridspec(5, 3, height_ratios=[3, 1, 0.55, 3, 1], hspace=0.12, wspace=0.2)
+    for n, r in enumerate(sel):
+        row, col = (n // 3) * 3, n % 3; ld = r["low_date"]; w = F.loc[ld - TD(days=40):ld + TD(days=14)]
+        ax = fig.add_subplot(gs[row, col]); av = fig.add_subplot(gs[row + 1, col], sharex=ax)
+        for a_ in (ax, av):
+            a_.set_facecolor(SURF); a_.grid(True, axis="y", color=GRID, lw=0.6); a_.set_axisbelow(True)
+            for sp in ("top", "right"): a_.spines[sp].set_visible(False)
+        x = np.arange(len(w))
+        for i, (d, k) in enumerate(w.iterrows()):
+            col_ = UP if k.close >= k.open else DN
+            ax.plot([i, i], [k.low, k.high], color=col_, lw=0.9, solid_capstyle="round")
+            ax.add_patch(Rectangle((i - 0.32, min(k.open, k.close)), 0.64, max(abs(k.close - k.open), k.close * 0.0008), facecolor=col_, edgecolor=col_, lw=0.4))
+            av.bar(i, k.vr, width=0.64, color=col_ if k.vr >= 1.5 else "#c3c2b7")
+        span = w.high.max() - w.low.min()
+        for d in w.index[w.fin]:
+            i = w.index.get_loc(d); nfin = list(w.index[w.fin]).index(d); ytxt = w.high.max() + span * (0.22 - 0.11 * (nfin % 2))
+            ax.plot([i, i], [w.high[d] + span * 0.015, ytxt - span * 0.02], color=INK, lw=0.8)
+            ax.text(i + (0.6 if nfin % 2 else -0.6), ytxt, f"{w.z[d]:.0f}σ  {w.ret[d]:+.0%}", ha="left" if nfin % 2 else "right", va="center", fontsize=8.5, color=INK, fontweight="bold")
+        i = w.index.get_loc(ld); ax.plot(i, w.low[ld] - span * 0.03, marker="^", ms=8, color=INK, mec=SURF, mew=1.2)
+        ax.annotate(f"low {ld:%b %d}\n${w.low[ld]:,.0f}  vol {w.vr[ld]:.1f}x", (i, w.low[ld] - span * 0.05), xytext=(i, w.low[ld] - span * 0.07), ha="center", va="top", fontsize=8.5, color=INK)
+        ax.set_ylim(w.low.min() - span * 0.26, w.high.max() + span * 0.30); ax.set_xlim(-1, len(w))
+        kind = "A: low on/next to the capitulation candle" if r["gap"] <= 1 else f"B: quiet undercut {r['gap']}d after the candle"
+        ax.set_title(f"{r['name']}   {kind}", loc="left", fontsize=10.5, color=INK, fontweight="bold", pad=6)
+        tk = [j for j in range(0, len(w), 7)]; av.set_xticks(tk); av.set_xticklabels([w.index[j].strftime("%m/%d") for j in tk]); plt.setp(ax.get_xticklabels(), visible=False)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")); av.axhline(1.5, color=MUTED, lw=0.6, ls=(0, (3, 3)))
+        av.set_ylim(0, max(6, w.vr.max() * 1.05) if n == 0 else max(4, w.vr.max() * 1.05)); av.set_ylabel("vol / 30d median", fontsize=7.5)
+    fig.suptitle("Bitcoin cycle lows: the capitulation candle (labelled in sigma) vs the day of the absolute low (triangle)", x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold", y=0.975)
+    fig.text(0.01, 0.945, "Daily candles, 40 days before to 14 days after the low. Red = up day, blue = down day. Lower strips: volume as a multiple of the prior 30-day median (coloured when 1.5x or more).", fontsize=9, color="#52514e")
+    p = os.path.join(CH, "bottom_anatomy_cycles.png"); fig.savefig(p, dpi=150, facecolor=SURF, bbox_inches="tight"); plt.close(fig); P(f"\n차트 저장: {os.path.relpath(p, os.path.join(HERE, '..'))}")
+
+# ───────────────────────── 8. 현재 상태 ─────────────────────────
+def now_state(F, SM, mv):
+    x = F.iloc[-1]; s = SM.iloc[-1]; d = F.index[-1]; prev = F.close.iloc[-2]
+    names = {0: "피날레 음봉 없음", 1: "투매 진행 중(마지막 투매일 7일 미만)", 2: "재시험 대기", 3: "조용한 재이탈 신호"}
+    sd = float(x.sd60); fin_px = prev * (1 - 5 * sd); cap_px = prev * (1 - 2.5 * sd); zone_px = float(x.ath) * 0.55
+    recent_cap = [str(k.date()) for k in F.index[F.cap][-3:]]
+    P(f"\n== 8. 현재 상태 {d.date()} (마지막 봉은 진행 중일 수 있음)")
+    P(f"   종가 ${x.close:,.0f} | 당일 {x.ret:+.1%} = {x.z:+.1f}σ | 거래량 {x.vr:.1f}배 | 일간 RSI {x.rsi:.0f} | 고점 대비 {x.dd:+.1%} (약세 구간 {bool(x.zone)}) | 30일 고점 대비(저가) {x.fall30:+.0%} | MVRV {mv.asof(d):.2f}")
+    P(f"   국면: {int(s.phase)} = {names[int(s.phase)]}" + (f" | 기준 투매 저가 L ${s.L:,.0f} ({pd.Timestamp(s.Ldate).date()}), 재시험 범위 ≤ ${s.L * 1.03:,.0f}, 투매 구간 최저 RSI {s.Rmin:.0f}, 마지막 투매일로부터 {int(s.since_cap)}일, 마지막 피날레로부터 {int(s.since_fin)}일" if int(s.phase) else ""))
+    P(f"   최근 투매일(2.5σ·거래량 1.5배): {recent_cap}")
+    P(f"   오늘 기준 직전 60일 변동성 {sd:.2%}/일 → 마지막 봉(진행 중)이 피날레 음봉(5σ)으로 끝나려면 종가 ${fin_px:,.0f} 이하({-5 * sd:+.1%}), 투매일(2.5σ)은 ${cap_px:,.0f} 이하. 약세 구간 경계(고점 -45%) ${zone_px:,.0f}")
+    st = dict(date=str(d.date()), close=round(float(x.close)), ret=round(float(x.ret), 4), z60=round(float(x.z), 2), vol_ratio=round(float(x.vr), 2), rsi_d=round(float(x.rsi), 1), dd_ath=round(float(x.dd), 4),
+              zone=bool(x.zone), phase=int(s.phase), phase_name=names[int(s.phase)], finale_today=bool(x.fin), cap_today=bool(x.cap), sd60=round(sd, 4),
+              next_finale_close=round(fin_px), next_cap_close=round(cap_px), zone_price=round(zone_px),
+              L=None if not int(s.phase) or pd.isna(s.L) else round(float(s.L)), L_date=None if not int(s.phase) or pd.isna(s.L) else str(pd.Timestamp(s.Ldate).date()),
+              retest_below=None if not int(s.phase) or pd.isna(s.L) else round(float(s.L) * 1.03), recent_cap_days=recent_cap, mvrv=round(float(mv.asof(d)), 3))
+    json.dump(st, open(os.path.join(HERE, "bottom_phase_state.json"), "w"), ensure_ascii=False, indent=1)
+
+if __name__ == "__main__":
+    ya = load_daily(os.path.join(DC, "BTCUSD.csv")); bs = load_daily(os.path.join(EX, "BTC_BITSTAMP_1D.csv"))
+    F = feats(ya); FB = feats(bs)
+    rows = cycle_table(F); hourly_table(); mv = act_table(F)
+    sigma_events(FB, "Bitstamp 일봉 2011-08~", mv); sigma_events(F, "Yahoo 일봉 2014-09~", mv)
+    swing_stats(F)
+    SM = state_machine(F); SMB = state_machine(FB)
+    phase_backtest(FB, SMB, "Bitstamp 2011~"); phase_backtest(F, SM, "Yahoo 2014~")
+    P("\n== 7. 조용한 재이탈 신호가 난 날 전부 (Yahoo). 추가 하락 = 신호일 종가 대비 이후 1년 최저 저가")
+    last = None
+    for d in SM.index[SM.phase == 3]:
+        if last is not None and (d - last).days < 5: last = d; continue
+        last = d; fut = F.low[d + TD(days=1):d + TD(days=365)]; more = min(fut.min() / F.close[d] - 1, 0) if len(fut) else np.nan
+        P(f"   {d.date()} 종가 ${F.close[d]:,.0f} | 저가 ${F.low[d]:,.0f} vs L ${SM.L[d]:,.0f} ({F.low[d] / SM.L[d] - 1:+.1%}) | 거래량 {F.vr[d]:.1f}배 | RSI {F.rsi[d]:.0f} (투매 최저 {SM.Rmin[d]:.0f}) | 피날레 후 {int(SM.since_fin[d])}일 | 추가 하락 {more:+.0%}")
+    if "--no-chart" not in sys.argv: charts(F, rows)
+    now_state(F, SM, mv)
+    open(os.path.join(OUTD, "bottom_anatomy.txt"), "w").write("\n".join(LINES) + "\n")
+
+
+====================================================================================================
+# 파일: scripts/fetch_bottom_extra.py
+====================================================================================================
+
+# -*- coding: utf-8 -*-
+"""비트코인 저점 해부 연구용 추가 자료 일회성 수집 (GitHub Actions 에서 실행, data/crypto/extra/ 에 저장).
+각 항목은 서로 독립이며 하나가 실패해도 나머지는 저장한다. 결과 요약은 _fetch_log.txt.
+  1) Bitstamp 일봉·시간봉 (2011-08~)          → BTC_BITSTAMP_1D.csv, BTC_BITSTAMP_1H.csv.gz
+  2) 공포탐욕지수 (alternative.me, 2018-02~)   → FNG.csv
+  3) 무기한 선물 펀딩비 (Binance 공개 파일, BitMEX) → FUNDING_BINANCE.csv, FUNDING_BITMEX.csv
+  4) Coin Metrics 커뮤니티 온체인 추가 지표     → BTC_ONCHAIN_EXTRA.csv
+  5) Binance 현물 시간봉 (매수·매도 체결량 포함) → BTC_BINANCE_1H.csv.gz
+  6) Deribit 내재변동성 지수 DVOL              → DVOL.csv
+  7) Coinbase 일봉 (코인베이스 프리미엄 계산용)  → BTC_COINBASE_1D.csv
+"""
+import os, io, sys, time, zipfile, datetime as dt
+import requests, pandas as pd
+
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "crypto", "extra")
+os.makedirs(OUT, exist_ok=True)
+S = requests.Session(); S.headers["User-Agent"] = "Mozilla/5.0 (research data fetch)"
+LOG = []
+def log(msg): print(msg, flush=True); LOG.append(msg)
+def get(url, params=None, tries=4, timeout=60):
+    last = None
+    for k in range(tries):
+        try:
+            r = S.get(url, params=params, timeout=timeout)
+            if r.status_code == 200: return r
+            last = f"HTTP {r.status_code}"
+            if r.status_code in (400, 403, 404, 451): break
+        except Exception as e: last = repr(e)
+        time.sleep(2 + 3 * k)
+    raise RuntimeError(f"{url} -> {last}")
+NOW = int(time.time())
+
+def bitstamp(step, name, start="2011-08-01", gz=False):
+    ts = int(pd.Timestamp(start).timestamp()); rows = []
+    while ts < NOW:
+        j = get("https://www.bitstamp.net/api/v2/ohlc/btcusd/", dict(step=step, limit=1000, start=ts)).json()["data"]["ohlc"]
+        if not j: ts += step * 1000; continue
+        rows += j; last = int(j[-1]["timestamp"])
+        ts = last + step if last >= ts else ts + step * 1000
+        time.sleep(0.25)
+    d = pd.DataFrame(rows).drop_duplicates("timestamp"); d["date"] = pd.to_datetime(d["timestamp"].astype(int), unit="s")
+    d = d[["date", "open", "high", "low", "close", "volume"]].sort_values("date")
+    d = d[pd.to_numeric(d["volume"]) > 0]
+    p = os.path.join(OUT, name + (".csv.gz" if gz else ".csv")); d.to_csv(p, index=False)
+    log(f"[OK] {name}: {len(d)} rows {d.date.min()} ~ {d.date.max()}")
+
+def fng():
+    j = get("https://api.alternative.me/fng/", dict(limit=0, format="json")).json()["data"]
+    d = pd.DataFrame(j); d["date"] = pd.to_datetime(d["timestamp"].astype(int), unit="s")
+    d = d[["date", "value", "value_classification"]].sort_values("date"); d.to_csv(os.path.join(OUT, "FNG.csv"), index=False)
+    log(f"[OK] FNG: {len(d)} rows {d.date.min().date()} ~ {d.date.max().date()}")
+
+def months(start):
+    m = pd.Timestamp(start); end = pd.Timestamp.utcnow().tz_localize(None)
+    while m <= end: yield m.strftime("%Y-%m"); m += pd.offsets.MonthBegin(1)
+
+def binance_zip(url):
+    r = S.get(url, timeout=60)
+    if r.status_code != 200: return None
+    z = zipfile.ZipFile(io.BytesIO(r.content)); raw = z.read(z.namelist()[0]).decode()
+    head = None if raw[:1].isdigit() else 0
+    return pd.read_csv(io.StringIO(raw), header=head)
+
+def funding_binance():
+    parts = []; miss = 0
+    for m in months("2019-09-01"):
+        d = binance_zip(f"https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-{m}.zip")
+        if d is None: miss += 1; continue
+        d.columns = ["calc_time", "interval_h", "rate"][:len(d.columns)]; parts.append(d)
+    try:  # 이번 달(월 파일 없음)과 초기 구간은 API 로 보충. 미국 IP 차단이면 건너뜀.
+        st = 1567296000000; api = []
+        for _ in range(40):
+            j = get("https://fapi.binance.com/fapi/v1/fundingRate", dict(symbol="BTCUSDT", startTime=st, limit=1000), tries=2).json()
+            if not j: break
+            api += j; st = j[-1]["fundingTime"] + 1
+            if len(j) < 1000: break
+        if api:
+            a = pd.DataFrame(api); parts.append(pd.DataFrame({"calc_time": a.fundingTime, "interval_h": 8, "rate": a.fundingRate.astype(float)}))
+    except Exception as e: log(f"[..] binance funding API skipped: {e}")
+    d = pd.concat(parts); d["date"] = pd.to_datetime(d["calc_time"].astype("int64"), unit="ms").dt.floor("h")
+    d = d[["date", "rate"]].drop_duplicates("date").sort_values("date"); d.to_csv(os.path.join(OUT, "FUNDING_BINANCE.csv"), index=False)
+    log(f"[OK] FUNDING_BINANCE: {len(d)} rows {d.date.min()} ~ {d.date.max()} (missing months {miss})")
+
+def funding_bitmex():
+    rows = []; start = 0
+    for _ in range(60):
+        j = get("https://www.bitmex.com/api/v1/funding", dict(symbol="XBTUSD", count=500, start=start, reverse="false")).json()
+        if not j: break
+        rows += j; start += len(j); time.sleep(1.2)
+        if len(j) < 500: break
+    d = pd.DataFrame(rows); d["date"] = pd.to_datetime(d["timestamp"]).dt.tz_localize(None)
+    d = d[["date", "fundingRate"]].rename(columns={"fundingRate": "rate"}).sort_values("date"); d.to_csv(os.path.join(OUT, "FUNDING_BITMEX.csv"), index=False)
+    log(f"[OK] FUNDING_BITMEX: {len(d)} rows {d.date.min()} ~ {d.date.max()}")
+
+def coinmetrics():
+    url0 = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
+    want = ["HashRate", "IssTotUSD", "RevUSD", "FeeTotUSD", "AdrActCnt", "TxCnt", "CapRealUSD", "CapMrktCurUSD", "SplyCur", "NVTAdj", "NVTAdj90",
+            "VtyDayRet30d", "FlowInExUSD", "FlowOutExUSD", "FlowInExNtv", "FlowOutExNtv", "SplyExNtv", "TxTfrValAdjUSD", "SplyAct1yr", "CapMVRVFF",
+            "SOPR", "SplyActPct1yr", "RevHashRateUSD", "DiffMean", "ROI30d", "ROI1yr"]
+    out = None; ok = []; bad = []
+    for m in want:
+        try:
+            rows = []; url = url0; params = dict(assets="btc", metrics=m, frequency="1d", page_size=10000, start_time="2010-07-01", paging_from="start")
+            for _ in range(10):
+                j = get(url, params, tries=2).json(); rows += j.get("data", []); url = j.get("next_page_url"); params = None
+                if not url: break
+            if not rows: raise RuntimeError("empty")
+            d = pd.DataFrame(rows); d["date"] = pd.to_datetime(d["time"]).dt.tz_localize(None).dt.normalize()
+            s = pd.to_numeric(d[m], errors="coerce"); s.index = d["date"]; s = s[~s.index.duplicated()]
+            out = s.to_frame(m) if out is None else out.join(s.to_frame(m), how="outer"); ok.append(m)
+        except Exception as e: bad.append(m)
+        time.sleep(0.7)
+    out.sort_index().to_csv(os.path.join(OUT, "BTC_ONCHAIN_EXTRA.csv"))
+    log(f"[OK] BTC_ONCHAIN_EXTRA: {len(out)} rows, metrics ok={ok} unavailable={bad}")
+
+def binance_1h():
+    parts = []; miss = []
+    for m in months("2017-08-01"):
+        d = binance_zip(f"https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-{m}.zip")
+        if d is None: miss.append(m); continue
+        d = d.iloc[:, :11]; d.columns = ["t", "open", "high", "low", "close", "volume", "ct", "quote_vol", "trades", "taker_buy_base", "taker_buy_quote"]
+        t = d["t"].astype("int64"); t = t.where(t < 10**14, t // 1000)   # 2025년부터 마이크로초
+        d["date"] = pd.to_datetime(t, unit="ms"); parts.append(d[["date", "open", "high", "low", "close", "volume", "quote_vol", "trades", "taker_buy_base"]])
+    d = pd.concat(parts).drop_duplicates("date").sort_values("date"); d.to_csv(os.path.join(OUT, "BTC_BINANCE_1H.csv.gz"), index=False)
+    log(f"[OK] BTC_BINANCE_1H: {len(d)} rows {d.date.min()} ~ {d.date.max()} (missing {miss})")
+
+def dvol():
+    rows = []; end = NOW * 1000; start = int(pd.Timestamp("2021-03-01").timestamp() * 1000)
+    for _ in range(30):
+        j = get("https://www.deribit.com/api/v2/public/get_volatility_index_data", dict(currency="BTC", start_timestamp=start, end_timestamp=end, resolution="1D")).json()["result"]
+        rows += j["data"]
+        if not j.get("continuation") or not j["data"]: break
+        end = j["continuation"]
+    d = pd.DataFrame(rows, columns=["t", "open", "high", "low", "close"]); d["date"] = pd.to_datetime(d.t, unit="ms")
+    d = d[["date", "open", "high", "low", "close"]].drop_duplicates("date").sort_values("date"); d.to_csv(os.path.join(OUT, "DVOL.csv"), index=False)
+    log(f"[OK] DVOL: {len(d)} rows {d.date.min().date()} ~ {d.date.max().date()}")
+
+def coinbase_1d():
+    rows = []; s = pd.Timestamp("2015-01-01"); endall = pd.Timestamp.utcnow().tz_localize(None)
+    while s < endall:
+        e = s + pd.Timedelta(days=299)
+        j = get("https://api.exchange.coinbase.com/products/BTC-USD/candles", dict(granularity=86400, start=s.isoformat(), end=e.isoformat())).json()
+        rows += j; s = e + pd.Timedelta(days=1); time.sleep(0.4)
+    d = pd.DataFrame(rows, columns=["t", "low", "high", "open", "close", "volume"]); d["date"] = pd.to_datetime(d.t, unit="s")
+    d = d[["date", "open", "high", "low", "close", "volume"]].drop_duplicates("date").sort_values("date"); d.to_csv(os.path.join(OUT, "BTC_COINBASE_1D.csv"), index=False)
+    log(f"[OK] BTC_COINBASE_1D: {len(d)} rows {d.date.min().date()} ~ {d.date.max().date()}")
+
+JOBS = [("bitstamp_1d", lambda: bitstamp(86400, "BTC_BITSTAMP_1D")), ("fng", fng), ("coinmetrics", coinmetrics), ("funding_binance", funding_binance),
+        ("funding_bitmex", funding_bitmex), ("dvol", dvol), ("coinbase_1d", coinbase_1d), ("binance_1h", binance_1h),
+        ("bitstamp_1h", lambda: bitstamp(3600, "BTC_BITSTAMP_1H", gz=True))]
+only = set(sys.argv[1:])
+for name, fn in JOBS:
+    if only and name not in only: continue
+    try: fn()
+    except Exception as e: log(f"[FAIL] {name}: {e!r}")
+open(os.path.join(OUT, "_fetch_log.txt"), "w").write(f"run {dt.datetime.utcnow():%Y-%m-%d %H:%M} UTC\n" + "\n".join(LOG) + "\n")
+
+
+====================================================================================================
+# 파일: .github/workflows/bottom-extra.yml
+====================================================================================================
+
+name: bottom-extra
+# 비트코인 저점 해부 연구용 추가 자료 일회성 수집 (시간봉·공포탐욕·펀딩비·온체인 추가 지표).
+# 연구 세션 컨테이너는 거래소 주소로 나갈 수 없어 이 작업으로 받는다. 예약 실행 없음.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ccr-d4b3886b-gvci67]
+    paths:
+      - scripts/fetch_bottom_extra.py
+      - .github/workflows/bottom-extra.yml
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_crypto_once.py || echo "daily refresh failed, keep old files"
+      - run: python scripts/fetch_onchain.py || echo "onchain refresh failed, keep old file"
+      - run: python scripts/fetch_bottom_extra.py
+      - run: |
+          git config user.name "collector-bot"
+          git config user.email "collector-bot@users.noreply.github.com"
+          git add data/crypto
+          git diff --staged --quiet && echo "no change" && exit 0
+          git commit -m "data(crypto): bottom-anatomy extra fetch"
+          git pull --rebase origin ${GITHUB_REF_NAME}
+          git push origin HEAD:${GITHUB_REF_NAME}

@@ -1,0 +1,27 @@
+{
+ "date": "2026-11-14",
+ "close": 66545,
+ "ret": -0.025,
+ "z60": -1.18,
+ "vol_ratio": 1.22,
+ "rsi_d": 22.6,
+ "dd_ath": -0.4727,
+ "zone": true,
+ "phase": 0,
+ "phase_name": "피날레 음봉 없음",
+ "finale_today": false,
+ "cap_today": false,
+ "sd60": 0.0212,
+ "next_finale_close": 61029,
+ "next_cap_close": 64639,
+ "zone_price": 69409,
+ "L": null,
+ "L_date": null,
+ "retest_below": null,
+ "recent_cap_days": [
+  "2026-06-02",
+  "2026-11-05",
+  "2026-11-13"
+ ],
+ "mvrv": 1.267
+}
