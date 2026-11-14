@@ -1,0 +1,11 @@
+run 2026-11-14 13:27 UTC
+[OK] BTC_BITSTAMP_1D: 5535 rows 2011-08-18 00:00:00 ~ 2026-11-14 00:00:00
+[OK] FNG: 3205 rows 2018-02-01 ~ 2026-11-14
+[OK] BTC_ONCHAIN_EXTRA: 5980 rows, metrics ok=['HashRate', 'IssTotUSD', 'AdrActCnt', 'TxCnt', 'CapMrktCurUSD', 'SplyCur', 'FlowInExUSD', 'FlowOutExUSD', 'FlowInExNtv', 'FlowOutExNtv', 'SplyExNtv', 'ROI30d', 'ROI1yr'] unavailable=['RevUSD', 'FeeTotUSD', 'CapRealUSD', 'NVTAdj', 'NVTAdj90', 'VtyDayRet30d', 'TxTfrValAdjUSD', 'SplyAct1yr', 'CapMVRVFF', 'SOPR', 'SplyActPct1yr', 'RevHashRateUSD', 'DiffMean']
+[..] binance funding API skipped: https://fapi.binance.com/fapi/v1/fundingRate -> HTTP 451
+[OK] FUNDING_BINANCE: 7488 rows 2020-01-01 00:00:00 ~ 2026-10-31 16:00:00 (missing months 5)
+[FAIL] funding_bitmex: RuntimeError('https://www.bitmex.com/api/v1/funding -> HTTP 403')
+[OK] DVOL: 2062 rows 2021-03-24 ~ 2026-11-14
+[OK] BTC_COINBASE_1D: 4136 rows 2015-07-20 ~ 2026-11-14
+[OK] BTC_BINANCE_1H: 80581 rows 2017-08-17 04:00:00 ~ 2026-10-31 23:00:00 (missing ['2026-11'])
+[OK] BTC_BITSTAMP_1H: 127167 rows 2011-08-18 12:00:00 ~ 2026-11-14 13:00:00
