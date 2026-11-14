@@ -1,0 +1,35 @@
+name: cycle-signal
+# 전방 검증: 크립토·ETF 자료 갱신 후 엔진 v2 상태와 다음 발동 수준을 research/forward_log.csv 에 기록.
+# 주의: schedule 은 기본 브랜치(main)에서만 실행된다. 연구 브랜치에서는 push/수동 실행만 된다.
+on:
+  schedule:
+    - cron: '20 0 * * *'   # 00:20 UTC = 09:20 KST, 크립토 일봉 확정 직후
+  workflow_dispatch:
+  push:
+    branches: [ccr-b178db42-c7x4uo]
+    paths:
+      - research/cycle_signal_daily.py
+      - research/cycle_engine_v2.py
+      - .github/workflows/cycle-signal.yml
+permissions:
+  contents: write
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_crypto_once.py
+      - run: python research/cycle_signal_daily.py
+      - run: |
+          git config user.name "collector-bot"
+          git config user.email "collector-bot@users.noreply.github.com"
+          git add data/crypto research/forward_log.csv
+          git diff --staged --quiet && echo "no change" && exit 0
+          git commit -m "signal: $(date -u +%F) cycle state"
+          git push origin HEAD:${GITHUB_REF_NAME}
