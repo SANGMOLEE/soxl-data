@@ -221,7 +221,7 @@ def chart():
     INK, MUTED, GRID, SURF, C1, C2 = "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb", "#2a78d6", "#eb6834"
     plt.rcParams.update({"font.family": ["Inter", "DejaVu Sans"], "font.size": 9, "axes.edgecolor": "#c3c2b7", "xtick.color": MUTED, "ytick.color": MUTED})
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.2), facecolor=SURF)
-    for ax, (ttl, d0, a, b, marks) in zip(axes, [("2022-23: SOL bottomed 38 days after BTC, at BTC's last pullback low", "2022-11-21", "2022-10-01", "2023-12-31", [("SOL low Dec 29", "2022-12-29"), ("SOL retest Jun 10", "2023-06-10"), ("SOL last pullback Sep 11", "2023-09-11")]),
+    for ax, (ttl, d0, a, b, marks) in zip(axes, [("2022-23: SOL bottomed 38 days after BTC", "2022-11-21", "2022-10-01", "2023-12-31", [("SOL low Dec 29", "2022-12-29"), ("SOL retest Jun 10", "2023-06-10"), ("SOL last pullback Sep 11", "2023-09-11")]),
                                                  ("2026: SOL bottomed 25 days before BTC (so far)", "2026-07-01", "2026-01-01", str(SOL.index[-1].date()), [("SOL low Jun 6", "2026-06-06"), ("SOL higher low Aug 1", "2026-08-01")])]):
         d0 = pd.Timestamp(d0); bb = BTC.close[a:b] / BTC.close[d0] * 100; ss = SOL.close[a:b] / SOL.close[d0] * 100
         ax.set_facecolor(SURF); ax.grid(True, color=GRID, lw=0.6); ax.set_axisbelow(True); ax.set_yscale("log")
@@ -233,8 +233,8 @@ def chart():
             if md in ss.index: ax.plot(md, ss[md], "o", ms=7, color=C2, mec=SURF, mew=1.5); ax.annotate(lab, (md, ss[md]), xytext=(0, -14), textcoords="offset points", ha="center", fontsize=8.5, color=INK)
         ax.text(bb.index[-1], bb.iloc[-1], "  BTC", color=INK, fontsize=9.5, va="center", fontweight="bold"); ax.text(ss.index[-1], ss.iloc[-1], "  SOL", color=INK, fontsize=9.5, va="center", fontweight="bold")
         ax.set_title(ttl, loc="left", fontsize=10.5, color=INK, fontweight="bold"); ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:.0f}")); ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-        ax.set_ylabel("close, indexed to 100 on the BTC low date (log scale)", fontsize=8, color=MUTED); ax.margins(x=0.08)
-        ax.legend(handles=[plt.Line2D([], [], color=C1, lw=2, label="Bitcoin"), plt.Line2D([], [], color=C2, lw=2, label="Solana")], loc="upper left", frameon=False, fontsize=9)
+        ax.set_ylabel("close, indexed to 100 on the BTC low date (log scale)", fontsize=8, color=MUTED); ax.margins(x=0.08); lo_, hi_ = ax.get_ylim(); ax.set_ylim(lo_ * 0.88, hi_)
+        ax.legend(handles=[plt.Line2D([], [], color=C1, lw=2, label="Bitcoin"), plt.Line2D([], [], color=C2, lw=2, label="Solana")], loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=2, frameon=False, fontsize=9)
     fig.suptitle("Bitcoin and Solana around the Bitcoin cycle low", x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold")
     p = os.path.join(HERE, "charts", "sol_btc_around_low.png"); fig.tight_layout(rect=(0, 0, 1, 0.95)); fig.savefig(p, dpi=150, facecolor=SURF); plt.close(fig); P(f"\n차트 저장: research/charts/sol_btc_around_low.png")
 
