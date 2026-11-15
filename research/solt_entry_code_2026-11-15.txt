@@ -1,6 +1,5 @@
-SOLT 진입 시점·가격 추정 코드 (2026-11-15)
+SOLT 진입 시점·보유 기간·가격 추정 코드 (2026-11-15)
 실행: python research/solt_entry_study.py (자료는 GitHub Actions 'sol-study' 로 수집)
-
 
 ====================================================================================================
 # 파일: research/solt_entry_study.py
@@ -144,6 +143,42 @@ def solt_projection():
     # (마) 과거 솔라나 저점에서의 실제 SOLT 값
     P("   (마) 실제 SOLT 종가: " + ", ".join(f"{d} ${SOLT.asof(pd.Timestamp(d)):.2f}" for d in ("2025-04-08", "2025-09-18", "2026-02-06", "2026-06-05", "2026-06-10", "2026-07-01", "2026-08-03", "2026-09-21", "2026-11-13")))
 
+# ───────────────────────── 5. 비트코인 저점에 사서 며칠 보유했을 때가 가장 좋았나 ─────────────────────────
+def holding():
+    H = [5, 10, 20, 30, 45, 60, 90, 120, 150, 180, 270, 365]; BL = {"2015": "2015-01-14", "2018": "2018-12-15", "2020": "2020-03-12", "2022": "2022-11-21", "2026": "2026-07-01"}
+    alts = [x for x in CM.columns if x != "btc"]; allr = {}; paths = []
+    P("\n== 5. 비트코인 저점 다음 거래일에 알트의 2배 상품을 사서 N일 보유했을 때의 자산 (1 = 본전). 알트 바스켓은 당시 200일 이상 거래된 종목 전부")
+    P("   보유일:        " + "  ".join(f"{n:>5d}" for n in H))
+    for k, v in BL.items():
+        d0 = pd.Timestamp(v); rows = {}; pk = []; pv = []
+        for a in alts:
+            p = CM[a].dropna()
+            if p.index[0] > d0 - TD(days=200): continue
+            v2 = lev2(a, SOLT if a == "sol" else None)[0]; e = v2.index[v2.index.searchsorted(d0 + TD(days=1))]
+            rows[a] = [v2.asof(e + TD(days=n)) / v2[e] if e + TD(days=n) <= v2.index[-1] else np.nan for n in H]
+            seg = v2[e:e + TD(days=200)] / v2[e]; pk.append((seg.idxmax() - e).days); pv.append(seg.max()); paths.append(seg)
+        R = pd.DataFrame(rows, index=H).T; allr[k] = R
+        P(f"   [{k}] {len(R):2d}종 중앙값: " + "  ".join(f"{x:5.2f}" for x in R.median()))
+        P(f"        이익 비율:   " + "  ".join(f"{x:5.0%}" for x in (R > 1).mean()))
+        if "sol" in R.index: P(f"        솔라나:      " + "  ".join(f"{x:5.2f}" for x in R.loc["sol"]))
+        P(f"        첫 200일 안 최고점: 시점 중앙값 {np.median(pk):.0f}일, 값 중앙값 {np.median(pv):.2f}배 (사분위 {np.quantile(pv, .25):.2f} ~ {np.quantile(pv, .75):.2f})")
+    for lab, ks in (("2020 제외 네 사이클", ("2015", "2018", "2022", "2026")), ("다섯 사이클 전부", tuple(BL))):
+        R = pd.concat([allr[k] for k in ks])
+        P(f"   [{lab}] 중앙값:    " + "  ".join(f"{x:5.2f}" for x in R.median())); P(f"        하위 25%:    " + "  ".join(f"{x:5.2f}" for x in R.quantile(.25))); P(f"        이익 비율:   " + "  ".join(f"{x:5.0%}" for x in (R > 1).mean()))
+    P("   ── 익절 목표별 (목표 도달 시 매도, 180일 안에 못 가면 180일째 매도)")
+    for X in (1.3, 1.5, 2.0, 2.5, 3.0, 4.0):
+        res = []; days = []
+        for seg in paths:
+            w = seg[:seg.index[0] + TD(days=180)]; hit = w[w >= X]
+            if len(hit): res.append(X); days.append((hit.index[0] - seg.index[0]).days)
+            else: res.append(w.iloc[-1])
+        res = np.array(res); miss = res[res < X]
+        P(f"      목표 {X:.1f}배: 도달 {len(days) / len(res):.0%} (도달까지 중앙값 {np.median(days):.0f}일) | 평균 결과 {res.mean():.2f}배 | 미도달 시 평균 {miss.mean() if len(miss) else float('nan'):.2f}배")
+    P("   ── 솔라나: 비트코인 저점 다음 거래일 매수 뒤 2배 상품의 최저·최고")
+    for k in ("2022", "2026"):
+        d0 = pd.Timestamp(BL[k]); v2 = lev2("sol", SOLT)[0]; e = v2.index[v2.index.searchsorted(d0 + TD(days=1))]; seg = v2[e:e + TD(days=200)] / v2[e]; hd = seg.idxmax()
+        P(f"      {k}: 매수 {e.date()} → 최고 {hd.date()} ({(hd - e).days}일째) {seg.max():.2f}배, 그 전 최저 {seg[:hd].min():.2f}배 ({(seg[:hd].idxmin() - e).days}일째) | 같은 기간 솔라나 1배 {CM.sol.asof(hd) / CM.sol.asof(e):.2f}배")
+
 if __name__ == "__main__":
-    paths(); entries(); us_hours(); solt_projection()
+    paths(); entries(); us_hours(); solt_projection(); holding()
     open(os.path.join(HERE, "output", "solt_entry_study.txt"), "w").write("\n".join(LINES) + "\n")
