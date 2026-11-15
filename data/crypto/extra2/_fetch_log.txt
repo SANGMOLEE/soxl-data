@@ -1,5 +1,5 @@
-run 2026-11-15 08:40 UTC
+run 2026-11-15 08:44 UTC
 [OK] upbit: 3339 rows 2017-09-25 ~ 2026-11-15
 [OK] polymarket: 495 bitcoin markets (raw keys [('search', 2), ('events_tag', 100), ('events_crypto', 100)])
-[OK] bgeometrics ok=['supply-profit(1461)', 'puell-multiple(1455)', 'cvdd(1450)', 'true-market-mean(1455)', 'balanced-price(1454)', 'terminal-price(1454)', 'reserve-risk(1461)', 'realized-loss(1461)', 'nrpl-usd(1451)', 'etf-flow-btc(701)']
-[..] bgeometrics unavailable=['hashribbons:429']
+[OK] bgeometrics ok=['hashribbons(1461)', 'asopr(1455)', 'supply-loss(1461)', 'rhodl-ratio(1461)', 'etf-btc-total(701)', 'open-interest-futures(1446)', 'funding-rate(4362)', 'vdd-multiple(1461)']
+[..] bgeometrics unavailable=['active-investor-price:404', 'delta-cap:500', 'exchange-reserve-btc:429']

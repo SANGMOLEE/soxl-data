@@ -1,4 +1,4 @@
-run 2026-11-15 08:39 UTC
+run 2026-11-15 08:43 UTC
 [OK] BTC_BITSTAMP_1D: 5536 rows 2011-08-18 00:00:00 ~ 2026-11-15 00:00:00
 [OK] FNG: 3206 rows 2018-02-01 ~ 2026-11-15
 [OK] BTC_ONCHAIN_EXTRA: 5981 rows, metrics ok=['HashRate', 'IssTotUSD', 'AdrActCnt', 'TxCnt', 'CapMrktCurUSD', 'SplyCur', 'FlowInExUSD', 'FlowOutExUSD', 'FlowInExNtv', 'FlowOutExNtv', 'SplyExNtv', 'ROI30d', 'ROI1yr'] unavailable=['RevUSD', 'FeeTotUSD', 'CapRealUSD', 'NVTAdj', 'NVTAdj90', 'VtyDayRet30d', 'TxTfrValAdjUSD', 'SplyAct1yr', 'CapMVRVFF', 'SOPR', 'SplyActPct1yr', 'RevHashRateUSD', 'DiffMean']
