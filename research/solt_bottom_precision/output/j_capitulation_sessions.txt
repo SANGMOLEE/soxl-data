@@ -1,0 +1,6 @@
+== 투매형 n=33  BTC 저점 시간대: {'pre': 11, 'overnight_boats': 9, 'regular': 5, 'post': 4, 'weekend_closed': 4}
+   SOL 저점 시간대: {'overnight_boats': 11, 'pre': 9, 'weekend_closed': 6, 'regular': 4, 'post': 3}   요일(ET): {'Mon': 8, 'Thu': 6, 'Tue': 5, 'Wed': 5, 'Fri': 5, 'Sat': 3, 'Sun': 1}
+== 조용한형 n=15  BTC 저점 시간대: {'weekend_closed': 5, 'pre': 3, 'post': 3, 'regular': 2, 'overnight_boats': 2}
+   SOL 저점 시간대: {'pre': 4, 'weekend_closed': 3, 'overnight_boats': 3, 'post': 3, 'regular': 2}   요일(ET): {'Wed': 3, 'Sun': 3, 'Tue': 3, 'Sat': 2, 'Mon': 2, 'Thu': 1, 'Fri': 1}
+
+투매형 중 SOLT 거래 가능 시간 비율: BTC기준 88%, SOL기준 82%

@@ -1,0 +1,16 @@
+SOLT 60m 6773 2025-03-20 13:30:00+00:00 2026-11-14 00:56:28+00:00 America/New_York {'timezone': 'EST', 'end': 1794580200, 'start': 1794560400, 'gmtoffset': -18000}
+SOLT 5m 8551 2026-08-21 08:00:00+00:00 2026-11-14 00:56:28+00:00 America/New_York {'timezone': 'EST', 'start': 1794560400, 'end': 1794580200, 'gmtoffset': -18000}
+SOLT 15m 3317 2026-08-21 08:00:00+00:00 2026-11-14 00:56:28+00:00 America/New_York {'timezone': 'EST', 'start': 1794560400, 'end': 1794580200, 'gmtoffset': -18000}
+SOLT 1m 1779 2026-11-05 09:00:00+00:00 2026-11-14 00:56:28+00:00 America/New_York {'timezone': 'EST', 'start': 1794560400, 'end': 1794580200, 'gmtoffset': -18000}
+BITU 60m ERR 'NoneType' object is not subscriptable
+BITU 5m 10439 2026-08-21 08:00:00+00:00 2026-11-14 00:56:00+00:00 America/New_York {'timezone': 'EST', 'end': 1794580200, 'start': 1794560400, 'gmtoffset': -18000}
+BITU 15m 3648 2026-08-21 08:00:00+00:00 2026-11-14 00:56:00+00:00 America/New_York {'timezone': 'EST', 'end': 1794580200, 'start': 1794560400, 'gmtoffset': -18000}
+BITU 1m 4633 2026-11-05 09:00:00+00:00 2026-11-14 00:56:00+00:00 America/New_York {'timezone': 'EST', 'start': 1794560400, 'end': 1794580200, 'gmtoffset': -18000}
+SOL-USD 60m 17479 2024-11-16 00:00:00+00:00 2026-11-15 15:35:13+00:00 UTC {'timezone': 'UTC', 'end': 1794700800, 'start': 1794700800, 'gmtoffset': 0}
+SOL-USD 5m 17180 2026-09-17 00:00:00+00:00 2026-11-15 15:35:13+00:00 UTC {'timezone': 'UTC', 'start': 1794700800, 'end': 1794700800, 'gmtoffset': 0}
+SOL-USD 15m 5728 2026-09-17 00:00:00+00:00 2026-11-15 15:35:13+00:00 UTC {'timezone': 'UTC', 'end': 1794700800, 'start': 1794700800, 'gmtoffset': 0}
+SOL-USD 1m 9576 2026-11-09 00:00:00+00:00 2026-11-15 15:35:18+00:00 UTC {'timezone': 'UTC', 'start': 1794700800, 'end': 1794700800, 'gmtoffset': 0}
+BTC-USD 60m 17480 2024-11-16 00:00:00+00:00 2026-11-15 15:35:20+00:00 UTC {'timezone': 'UTC', 'end': 1794700800, 'start': 1794700800, 'gmtoffset': 0}
+BTC-USD 5m 17180 2026-09-17 00:00:00+00:00 2026-11-15 15:35:20+00:00 UTC {'timezone': 'UTC', 'end': 1794700800, 'start': 1794700800, 'gmtoffset': 0}
+BTC-USD 15m 5728 2026-09-17 00:00:00+00:00 2026-11-15 15:35:25+00:00 UTC {'timezone': 'UTC', 'end': 1794700800, 'start': 1794700800, 'gmtoffset': 0}
+BTC-USD 1m 9576 2026-11-09 00:00:00+00:00 2026-11-15 15:35:25+00:00 UTC {'timezone': 'UTC', 'start': 1794700800, 'end': 1794700800, 'gmtoffset': 0}

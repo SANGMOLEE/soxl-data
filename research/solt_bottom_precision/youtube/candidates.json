@@ -1,0 +1,220 @@
+{
+  "meta": {
+    "source_channel": "https://www.youtube.com/@%EB%A7%A4%EB%A7%A4%EB%B2%95%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C",
+    "compiled": "2026-11-15",
+    "conventions": {
+      "bar_close_only": "All conditions are evaluated on CLOSED bars. 'enter at close' = fill at that bar's close (or next bar open as a conservative variant). Intrabar stop/target hits must be resolved with a lower timeframe (1m data available) or a worst-case rule (stop first).",
+      "R": "R = |entry - stop|. Target 'kR' = entry + k*R for longs.",
+      "pivots": "Any swing high/low uses pivot(left=L, right=R); a pivot at bar t-R becomes usable only at bar t (no look-ahead). L and R are UNSPECIFIED in the videos unless stated.",
+      "unspecified": "Fields named 'unspecified_params' list parameters the video did not state, with a suggested test range. Values given elsewhere are stated in the video.",
+      "solt_adaptation": "Videos target BTC/ETH spot/perp scalps/swings. For SOLT, compute the signal on BTC or SOL (Binance) and execute SOLT at the next available US session price (incl. pre/after-market); test both the video's own exit and our preset SOLT profit multiples (1.5x, 2x, 3x) with the video's stop. These adaptations are ours, not the videos'."
+    },
+    "data_notes": "Binance 1m parquet files include tbv (taker-buy base volume), so CVD = cumsum(2*tbv - v) is computable; volume profile can be built from 1m bars."
+  },
+  "candidates": [
+    {
+      "rank": 1,
+      "name": "Ross Cameron RSI double bottom (RSI 쌍바닥)",
+      "source_video": "lxz7Csyg9bk",
+      "source_title": "80만원으로 150억, 진짜 RSI 매매전략 [로스 카메론 RSI 쌍바닥 매매법]",
+      "timeframe": "1h (video: BTC 1h)",
+      "indicators": "RSI(14, close) [video: 'use default settings']; Bollinger Bands(20, 2.0, close) [video: default BB, params not spoken]; engulfing candles",
+      "definitions": {
+        "bullish_engulfing": "bar[i-1] bearish (close<open) AND bar[i] bullish (close>open) AND close[i] >= open[i-1] AND open[i] <= close[i-1] (body of i covers body of i-1)",
+        "bearish_engulfing": "mirror of bullish_engulfing"
+      },
+      "entry": "Long state machine. (1) SETUP ('yellow candle'): a bar s with RSI(14)[s] < 30 AND close[s] < lowerBB[s] AND (bar s is a bearish engulfing OR bars s-2,s-1,s are three consecutive bearish candles). First bottom low L1 = min(low) from s until the first bullish engulfing. (2) FIRST REVERSAL: a bullish engulfing bar e1 after s. (3) SECOND BOTTOM: after e1, price pulls back (at least one bar with close < close[e1] or a new local low) forming second bottom low L2 = min(low) after e1; L2 may be higher OR lower than L1, but the second-bottom bar must be INSIDE the band: low >= lowerBB on that bar (strict variant) [alternative: close >= lowerBB]. (4) TRIGGER: a bullish engulfing bar e2 at/after the second bottom whose own low or previous bar's low equals L2 -> enter long at close[e2].",
+      "exit": "Take profit at entry + 3R (video). Our variants: SOLT preset multiples.",
+      "stop": "Low of the second bottom (L2).",
+      "short_mirror": "RSI>70, bullish engulfing or 3 consecutive bullish bars closing above upper BB, bearish engulfing, second top inside band, bearish engulfing at second top -> short at close; stop above second top; target 3R.",
+      "unspecified_params": {
+        "max_bars_setup_to_entry": "not stated; test 6-72 bars (1h)",
+        "inside_band_test": "low>=lowerBB vs close>=lowerBB (video wording 'stopped inside the band' suggests low)",
+        "RSI_condition_at_second_bottom": "not required by video; optional test RSI>30 at L2 (bullish divergence)",
+        "reset_rule": "not stated; suggest: cancel setup if a new bar closes below lowerBB with RSI<30 after e1 (treat as new setup)"
+      },
+      "claimed_performance": "Two long examples hit +6% within ~half a day; one short +6% within hours. No statistics. Selected examples.",
+      "relevance": "HIGH for bottom-catching: formalizes capitulation (close below lower band, RSI<30) -> relief bounce -> retest that holds inside the band -> reversal candle. Stop below the retest low defines risk. Fixed-R target maps directly onto preset-multiple exits.",
+      "weaknesses": "In extended bear markets, 1h double bottoms recur many times (series of stops) -> pair with a higher-timeframe capitulation filter (daily drawdown, funding, MVRV, Fear&Greed). 3R on 1h is a few % — far smaller than SOLT 1.5x-3x targets. No repainting; low parameter count."
+    },
+    {
+      "rank": 2,
+      "name": "CHoCH + order-block retest with volume (추세전환·매물대, simplified Smart Money Concepts)",
+      "source_video": "UWpIZ49PoRY",
+      "source_title": "트레이딩뷰 1등 지표, 어려운 용어 없이 신호 하나로 쓰는 매매법 [추세전환·매물대]",
+      "timeframe": "4h (video: BTC 4h)",
+      "indicators": "Swing pivots; volume SMA(20)",
+      "entry": "Long: (1) Market in downtrend (last structure break bearish, i.e., most recent confirmed swing lows descending). (2) Bullish CHoCH: a bar c whose CLOSE exceeds the most recent confirmed swing high. (3) Volume[c] > 1.5 * SMA(volume, 20) computed over the 20 bars before c (video: 'more than 1.5x the average of the previous twenty candles'). Only then an order-block box is created. (4) Order-block box = range [low, high] of the candle 'at the lowest point where orders concentrated' before the CHoCH move — implement as the last bearish (close<open) candle at or immediately before the lowest low between the broken swing high and bar c (standard SMC OB). (5) Later, price returns into the box (low <= box_top) and a bar closes BULLISH (close>open) with close inside the box (box_bottom <= close <= box_top) -> enter long at that close.",
+      "exit": "Take profit at 2R (video default); video used 3R when 'trend has just reversed strongly' (subjective) -> test 2R and 3R. Orders are set at entry and not managed further. Our variants: SOLT preset multiples.",
+      "stop": "min(box_bottom, signal_bar_low).",
+      "short_mirror": "Bearish CHoCH (close below last swing low) with volume >1.5x SMA20 -> bearish OB (last bullish candle at the highest high) -> price rallies into box and closes bearish inside -> short; stop max(box_top, signal_high); 2R.",
+      "unspecified_params": {
+        "pivot_left_right": "not stated; LuxAlgo SMC defaults are internal=5 and swing=50; test L=R in {3,5,10} on 4h",
+        "order_block_definition": "not stated beyond 'lowest point where orders concentrated'; test (a) last bearish candle before impulse, (b) the candle with the lowest low before CHoCH",
+        "box_expiry": "not stated; test 10-60 bars; invalidate box if a bar closes below box_bottom",
+        "downtrend_precondition": "implied ('price came down a long way'); test: lower-low sequence or close < SMA200"
+      },
+      "claimed_performance": "Three consecutive signals on BTC 4h: +3.12%, +2.16%, +11.75% (the 3R trade nearly stopped out, hit target ~2 weeks later). Presenter claims they are consecutive, not cherry-picked. No statistics.",
+      "relevance": "HIGH: first long example is exactly capitulation low -> high-volume break of prior swing high -> retest of the bottom order block. Buys the higher-low retest with stop under the bottom.",
+      "weaknesses": "Pivot confirmation lag (must not use unconfirmed pivots). OB definition ambiguous (curve-fit risk). Few signals. Original SMC indicators redraw boxes; implement causally."
+    },
+    {
+      "rank": 3,
+      "name": "Fibonacci golden-zone pullback after structure flip (피보나치 가이드라인)",
+      "source_video": "jmkcgrBT8_M",
+      "source_title": "매매초보 → 개고수 차트분석가, 꼭 익혀야 할 트레이더 전략 3가지 [추세선·이평선·피보나치] (3rd method)",
+      "timeframe": "1h (video recommends 1h; BTC)",
+      "indicators": "Swing pivots; Fibonacci retracement",
+      "entry": "Long: (1) Structure flips up: after a decline, price breaks above the previous confirmed swing high ('goes above the immediately previous high'). (2) After a NEW swing high B is confirmed, anchor A = the swing low that started this up-move (the bottom). (3) Golden zone = [B - 0.618*(B-A), B - 0.5*(B-A)]. (4) Wait for a bar whose low touches the zone and which closes as a bullish candle (close>open) leaving a lower wick (and not closing below the zone) -> enter long at the NEXT bar's open. If price traverses the zone without a bullish rejection candle -> no trade.",
+      "exit": "Take profit at B (fib 0, the swing high). Our variants: SOLT preset multiples.",
+      "stop": "Just below A (fib 1.0).",
+      "short_mirror": "Structure flips down, anchor high->low, wait for rally into 0.5-0.618 and a bearish rejection candle, short next open, stop above the high, target the low.",
+      "unspecified_params": {
+        "pivot_left_right": "not stated; test L=R in {3,5,10} on 1h",
+        "bullish_candle_close_location": "not stated (inside zone or above); test both",
+        "min_lower_wick": "not stated; test none vs wick >= 30% of range",
+        "setup_expiry": "not stated; cancel if a new higher swing high forms before entry (re-anchor) or after 48 bars",
+        "stop_buffer": "'below' the low; test 0-0.2% or 0.1*ATR"
+      },
+      "claimed_performance": "Video states a backtest: BTC 1h, last 2 years, 45 entries, 28 hit target before stop (62%), fees excluded. Plus 3 consecutive example wins.",
+      "relevance": "HIGH: codifies buying the first higher low after a capitulation bottom with stop under the bottom; target = first reaction high.",
+      "weaknesses": "Reward:risk ~1.0 (entry at 0.5) to ~1.6 (entry at 0.618), below 1.0 if the next-bar open fills above the zone; 62% (n=45, fees excluded) needs verification after costs. Pivot confirmation lag. Parameters undisclosed."
+    },
+    {
+      "rank": 4,
+      "name": "Downtrend-line breakout (추세선 지표)",
+      "source_video": "jmkcgrBT8_M",
+      "source_title": "매매초보 → 개고수 차트분석가, 꼭 익혀야 할 트레이더 전략 3가지 [추세선·이평선·피보나치] (1st method)",
+      "timeframe": "4h (video example BTC 4h)",
+      "indicators": "Trendline through confirmed pivot highs (wick highs)",
+      "entry": "Long: draw a descending line through the two most recent confirmed pivot highs (wick highs) with the second lower than the first; extend it forward. When a bar CLOSES above the line's value at that bar (wick-only crosses ignored) -> enter long at that close.",
+      "exit": "Target = signal_bar_high + D (indicator's 'Target' line; formula not disclosed). Our variants: SOLT preset multiples.",
+      "stop": "signal_bar_low - D (video: stop is the same distance below the candle low as the target is above the candle high).",
+      "short_mirror": "Ascending line through pivot lows; close below -> short; target low - D; stop high + D.",
+      "unspecified_params": {
+        "pivot_left_right": "not stated; test {5,10,14}",
+        "band_width": "indicator draws a band (likely ATR-based slope as in LuxAlgo 'Trendlines with Breaks'); test zero width vs 0.5*ATR(14)",
+        "D_target_distance": "not stated; test D = k*ATR(14) with k in {1,1.5,2,3} or D = signal bar range",
+        "min_line_length": "video example: month-long decline; test minimum 20-100 bars between pivots"
+      },
+      "claimed_performance": "One BTC 4h segment: 3 signals, all hit Target first. No statistics.",
+      "relevance": "HIGH-MEDIUM: close above a multi-week descending trendline is a classic end-of-decline confirmation after capitulation.",
+      "weaknesses": "Many free parameters (curve-fit risk); pivot lag; LuxAlgo-type trendlines may repaint historically."
+    },
+    {
+      "rank": 5,
+      "name": "Alex Gonzalez HMA(100) retest / slope flip (HMA 리테스트)",
+      "source_video": "uyy3_yqlKkU",
+      "source_title": "20대 알바생이 10만원을 10억으로 불린 매매법 [HMA 돌파 매매전략]",
+      "timeframe": "1D (video: BTC & ETH daily); also test 4h/1h",
+      "indicators": "Hull MA length 100 on close. Color: rising if HMA[t] > HMA[t-1] (blue), else falling (pink).",
+      "entry": "Long: (1) GRAY DOT: while HMA is falling, a bar closes above HMA. (2) ENTRY: the first subsequent bar on which HMA turns rising (HMA[t] > HMA[t-1] and HMA[t-1] <= HMA[t-2]) -> enter long at that bar's close. (Video also says the blue candle that closes a short is itself a long entry, so test with and without the gray-dot prerequisite.)",
+      "exit": "Exit at the close of the first bar on which HMA turns falling again (pink). Our variants: SOLT preset multiples.",
+      "stop": "Previous swing low ('직전 저점'; example was 3.8% below entry).",
+      "short_mirror": "HMA rising, bar closes below HMA (gray dot), then HMA turns falling -> short at close; stop at previous swing high (example 6% above); exit when HMA turns rising.",
+      "unspecified_params": {
+        "previous_low_definition": "not stated; test lowest low of last 5, 10, 20 bars or last confirmed pivot low (L=R=3)",
+        "require_close_above_HMA_at_entry": "not stated; test both",
+        "HMA_length_on_intraday": "video uses 100 on daily only; for 4h/1h test 100 and 100*bars-per-day equivalents"
+      },
+      "claimed_performance": "On a BTC daily bear->bull turn: EMA100 close-above came at +20% from the low (49th bar); HMA100 turned up at +12% from the low (14th bar). ETH top: HMA turned down 16% below top (7th bar) vs EMA 21%. Trades: long +59% (vs +7.6% with fixed 1:2), short +15.9%, follow-on long +28%. Gray-dot-only entry example lost 29%.",
+      "relevance": "MEDIUM-HIGH: daily HMA100 up-turn as cycle-bottom confirmation; video's own numbers let us measure 'distance from low at entry'. Causal, no repainting.",
+      "weaknesses": "Length 100 given without justification; late on daily (tens of % for SOL); exit logic is trend-trailing, not a fixed target."
+    },
+    {
+      "rank": 6,
+      "name": "Fabio Valentini absorption / CVD divergence at POC (파비오 흡수 괴리)",
+      "source_video": "vwhuUHVXLzc",
+      "source_title": "7일동안 +218% 만든 단타 매매전략 [파비오 흡수 매매법]",
+      "timeframe": "15m (video: BTC 15m)",
+      "indicators": "CVD = cumulative(taker_buy_vol - taker_sell_vol) = cumsum(2*tbv - v) from Binance 1m; anchored volume profile POC; swing pivots for anchoring",
+      "entry": "Long (A setup): (1) Anchor a volume profile at the most recent trend inflection point (confirmed swing low/high) and compute POC (highest-volume price bin) from anchor to now; band color blue if summed delta in the window > 0. (2) Bullish divergence: price rising from the low (higher low / higher close) while CVD is falling over the same window. (3) A bar closes above the POC band AND CVD turns up (CVD[t] > CVD[t-1] after a local CVD low). All three -> enter long at that bar's close.",
+      "exit": "Take profit at 4R (video). Our variants: SOLT preset multiples.",
+      "stop": "Previous swing low.",
+      "short_mirror": "Price falling while CVD rising (distribution/trapped buyers), bar closes below POC band, CVD turns down -> short; stop previous swing high; 4R.",
+      "other_rules": "Reduce size (half) before US cash-equity open (09:30 ET); counter-trend trades only with smallest (C) size.",
+      "unspecified_params": {
+        "inflection_point_pivot": "not stated; test L=R in {5,10,20} bars on 15m",
+        "divergence_window": "not stated; test 8-48 bars",
+        "POC_bin_size": "not stated; test 0.05%-0.25% of price",
+        "POC_band_width": "not stated; test POC bin +/- 1 bin or value area 10%",
+        "A_B_C_thresholds": "not stated (based on buy/sell imbalance in window); test |sum delta|/sum volume terciles"
+      },
+      "claimed_performance": "Trader's Robbins World Cup returns 69%, ~90%, 218%, 169%. Two example trades hit 4R. No backtest of the indicator rules.",
+      "relevance": "MEDIUM-HIGH conceptually: absorption (CVD keeps falling while price stops making lower lows) is the micro-signature of capitulation lows. Computable from 1m tbv; could serve as a filter for candidates 1-3.",
+      "weaknesses": "Very high parameter freedom (the video itself calls profile-window choice a trap) -> high curve-fit risk. True order-flow absorption needs L2/tick data; 1m taker-buy CVD is an approximation. Anchor pivots confirmed only after R bars."
+    },
+    {
+      "rank": 7,
+      "name": "Weekly VWAP slope turn — 'VWAP 신호등' (Humbled Trader / Lance Breitstein)",
+      "source_video": "mYTYGP-yNWg",
+      "source_title": "100억 버는 월가 1등의 1:3 매매법",
+      "timeframe": "1h or 4h (video recommends both; not 1m, not 1D)",
+      "indicators": "Weekly-anchored VWAP (resets every Monday; typical price (H+L+C)/3 weighted by volume). Slope: up if VWAP[t] > VWAP[t-1].",
+      "entry": "Long: VWAP was falling and turns up at bar t (VWAP[t] > VWAP[t-1] and VWAP[t-1] <= VWAP[t-2]). After bar t closes, enter at the open of bar t+1.",
+      "exit": "Sell 50% at entry + 3R; hold the remaining 50% until VWAP turns down (exit at next open after the turn-down bar closes). Our variants: SOLT preset multiples.",
+      "stop": "Low of the turn bar t.",
+      "short_mirror": "VWAP rising then turns down -> short next bar; stop = turn-bar high; 50% at 3R, rest when VWAP turns up.",
+      "unspecified_params": {
+        "week_anchor_timezone": "not stated (TradingView exchange time); use UTC Monday 00:00 for Binance",
+        "skip_after_reset": "video warns early-Monday signals are noisy but gives no rule; test skipping first 0, 6, 24 hours of the week",
+        "slope_noise_filter": "not stated; test minimum slope change or 2-bar confirmation"
+      },
+      "claimed_performance": "None (concept examples only). Risk 1% of account per trade.",
+      "relevance": "MEDIUM: weekly VWAP turning up after a capitulation week signals that the average buyer of the week is back in profit; tight stop at turn-bar low.",
+      "weaknesses": "Reset artifacts; VWAP slope rarely turns late in the week (time-of-week bias); chop produces repeated stops (acknowledged)."
+    },
+    {
+      "rank": 8,
+      "name": "Emmanuel 20/200 squeeze (임마누엘 스퀴즈)",
+      "source_video": "aDcyqOcPJxM",
+      "source_title": "이평선 단 2개로 8억을 번 트레이더의 매매법 [임마누엘 스퀴즈 매매전략]",
+      "timeframe": "4h (video; also OK on 1h/1D, not <=5m)",
+      "indicators": "SMA(20) and SMA(200) on close (video describes simple averages of closes). SMA200 rising if SMA200[t] > SMA200[t-1].",
+      "entry": "Long when ALL on the same closed bar: (1) SMA200 rising; (2) squeeze: |SMA20 - SMA200| / SMA200 < 1%; (3) bullish candle (close > open); (4) close > SMA20 AND close > SMA200 -> enter long at that close.",
+      "exit": "Exit at the close of the first bar that closes below SMA200 (this is also the stop). Optional partial profit-taking mentioned but not specified. Our variants: SOLT preset multiples.",
+      "stop": "Close below SMA200 (entries were 0.5%-1.2% above SMA200 in examples).",
+      "short_mirror": "SMA200 falling, squeeze <1%, bearish candle closing below both MAs -> short; exit on close above SMA200.",
+      "unspecified_params": {
+        "slope_lookback": "not stated; test 1, 5, 10 bars",
+        "chop_filter": "video: stop trading when closes cross SMA200 very often (example 15 crosses in ~1 week); test 'skip if >= N crosses of SMA200 in last 42 bars', N in {4,6,8}"
+      },
+      "claimed_performance": "Examples: +56% in ~2 months, short +22% in 50 days, long +20% in 48 days, recent +5% in 3 weeks. 'Many small losses, occasional large win'. No statistics.",
+      "relevance": "MEDIUM-LOW for precise bottoms (waits for 4h SMA200 to turn up), but useful as a post-bottom regime confirmation / second entry and as a rule that forbids premature longs (example: price above a still-falling SMA200 with 4% gap -> wait).",
+      "weaknesses": "1% threshold arbitrary; whipsaw in flat SMA200 periods."
+    },
+    {
+      "rank": 9,
+      "name": "John Bollinger band breakout + MFI confirmation (볼린저밴드 돌파)",
+      "source_video": "J3Znau4RqSo",
+      "source_title": "볼린저밴드 개발자가 직접 알려주는 진짜 매매법 [볼린저밴드 돌파 매매법]",
+      "timeframe": "30m (video tuned the indicator to BTC 30m; claims tests from 1m to 1D)",
+      "indicators": "Bollinger Bands(20, 2.0) [middle = 20-bar mean; '95% inside'], MFI (period not stated; default 14)",
+      "entry": "Long: bar p closes above upper band with MFI >= 85 -> preliminary signal (no trade). If within the next 10 bars another bar closes above the upper band with MFI >= 85 -> enter long at that bar's close.",
+      "exit": "Exit at the close of the first bar that closes below the middle band. Our variants: SOLT preset multiples.",
+      "stop": "Lowest low of the 5 bars before entry.",
+      "short_mirror": "Close below lower band with MFI <= 15 (preliminary), second such close within 10 bars -> short; stop = highest high of prior 5 bars; exit on close above middle band.",
+      "unspecified_params": {
+        "MFI_length": "not stated; test 14 (default) and 10/20",
+        "second_signal_counting": "video: 'within ten bars after the first breakout'; whether a new first signal resets the window is not stated"
+      },
+      "claimed_performance": "Examples: long +3.6% (19h), loser <-1%, short +6%, crash-day short +11%; first-signal entry would have lost 3.5% (second never came). No statistics.",
+      "relevance": "MEDIUM-LOW: long side is momentum breakout off a low (V-reversal confirmation). Our adaptation (not in video): the SHORT trigger (repeated closes below lower band with MFI<=15) marks capitulation legs — test 'arm a bottom-buy only after this condition has fired and then stopped for N bars'.",
+      "weaknesses": "Fixed 85/15 thresholds; 30m scalp scale; selected examples."
+    }
+  ],
+  "not_selected_but_testable": [
+    {"name": "Turtle 20/10 breakout with SMA200 filter, ATR*2 initial stop, close-below-10-bar-low trailing exit", "source_video": "1wrJIzvCeFM", "timeframe": "15m", "why_not": "Long only above SMA200 -> cannot buy near a bottom; but its trailing exit is a useful comparison to fixed-multiple exits."},
+    {"name": "Hull MA band color flip; stop = lowest low of 5 bars before entry; 50% at 1.5R, rest at color flip", "source_video": "jmkcgrBT8_M", "timeframe": "4h", "why_not": "HMA length not stated; near-duplicate of candidate 5."},
+    {"name": "Clean MACD (gray neutral band; +2% TP; stop prior low)", "source_video": "yWQ4aZgb_ik", "timeframe": "4h", "why_not": "Neutral-band formula undisclosed; +2% scalps. Video claims BTC 4h 3y 82/105 and ETH 89/108 hit +2% (no stop-size/fee info)."},
+    {"name": "Volume-weighted CCI with BB middle-line direction", "source_video": "tQadAOEVbFA", "timeframe": "2h", "why_not": "CCI-volume formula undisclosed."},
+    {"name": "Kell contraction breakout (EMA10/20/50, skip first signal after decline, exit close<EMA20)", "source_video": "kpiGpZawMXU", "timeframe": "1h", "why_not": "Explicitly skips the first rally after a decline."},
+    {"name": "Zanger ADX pullback (SMA20 slope, SMA7, ADX trough-and-rise, exit close<SMA7)", "source_video": "LvYKk9ayuTo", "timeframe": "30m", "why_not": "Trend continuation; 'ADX low enough' not quantified."},
+    {"name": "Testa 5/25/150 pullback (close back above MA25 in bullish alignment; 1R half; exit close<MA25)", "source_video": "q7gyeDtLxEI", "timeframe": "4h", "why_not": "Trend continuation."},
+    {"name": "Kullamagi box breakout (EMA10/20/50, breakout volume >= 2x box average; exits close<EMA10 half, close<EMA20 rest)", "source_video": "qWAdlQ7cW6o", "timeframe": "4h", "why_not": "Trend continuation; box definition needed."},
+    {"name": "Adam Khoo 4-step breakout (alignment, dip below MA10 holding MA50, tight box, body close above box)", "source_video": "8alpPJ4n_ao", "timeframe": "2h", "why_not": "Trend continuation; near-duplicate of Kullamagi."},
+    {"name": "Darvas box (close above box top; stop just below top; ratchet stop to each new box bottom)", "source_video": "9WkLLf0q_ug", "timeframe": "4h", "why_not": "Box definition subjective; could test on post-capitulation bases."},
+    {"name": "Celia box + close-location pressure bar ((2C-H-L)/(H-L)); breakout 1:3, range reversals half at midline", "source_video": "U_Q9cuuYS64", "timeframe": "2h", "why_not": "Range trading; box definition needed."},
+    {"name": "Casper US-open 5-min range breakout with 1m body close + FVG; stop = first breakout candle extreme; 2R; one trade/day", "source_video": "pMPURUUJvDE", "timeframe": "5m range / 1m trigger", "why_not": "Not a bottom detector; possibly useful as SOLT same-day execution timing rule (SOLT data is 5m, use BTC 1m as trigger proxy)."}
+  ]
+}
