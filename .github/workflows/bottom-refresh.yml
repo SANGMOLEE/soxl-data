@@ -24,7 +24,7 @@ jobs:
       - run: python scripts/fetch_crypto_once.py || echo "daily refresh failed, keep old files"
       - run: python scripts/fetch_onchain.py || echo "onchain refresh failed, keep old file"
       - run: python scripts/fetch_bottom_extra.py bitstamp_1d fng dvol coinmetrics
-      - run: python scripts/fetch_bottom_extra2.py upbit polymarket fred bgeometrics
+      - run: python scripts/fetch_bottom_extra2.py upbit polymarket bgeometrics
       - run: |
           git config user.name "collector-bot"
           git config user.email "collector-bot@users.noreply.github.com"
