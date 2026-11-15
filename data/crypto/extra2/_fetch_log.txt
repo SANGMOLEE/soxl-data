@@ -1,21 +1,5 @@
-run 2026-11-15 08:33 UTC
-[OK] bithumb: 200 rows 2026-04-29 ~ 2026-11-14
+run 2026-11-15 08:40 UTC
 [OK] upbit: 3339 rows 2017-09-25 ~ 2026-11-15
-[OK] cbbi: 5620 rows 2011-06-27 ~ 2026-11-14 cols=['Price', 'Confidence', 'Confidence2', 'PiCycle', 'PiCycle2', 'RUPL', 'RUPL2', 'RHODL', 'RHODL2', 'Puell', 'Puell2', '2YMA', '2YMA2', 'Trolololo', 'Trolololo2', 'MVRV', 'MVRV2', 'ReserveRisk', 'ReserveRisk2', 'Woobull', 'Woobull2']
-[OK] stablecoins: 3274 rows 2017-11-29 ~ 2026-11-15
-[OK] bitfinex margin: 0 rows NaT ~ NaT
-[OK] polymarket: 0 bitcoin markets
-[OK] kalshi: 0 bitcoin markets
-[OK] yahoo MSTR: 1727 rows ~ 2026-11-13
-[OK] yahoo USDKRW: 4391 rows ~ 2026-11-15
-[OK] yahoo DXY: 4244 rows ~ 2026-11-13
-[OK] yahoo NASDAQ: 4243 rows ~ 2026-11-13
-[OK] yahoo GOLD: 4243 rows ~ 2026-11-13
-[OK] yahoo ETHUSD: 3294 rows ~ 2026-11-15
-[FAIL] fred DGS10: RuntimeError('https://fred.stlouisfed.org/graph/fredgraph.csv -> ReadTimeout(ReadTimeoutError("HTTPSConnectionPool(host=\'fred.stlouisfed.org\', port=443): Read timed out. (read timeout=60)"))')
-[FAIL] fred DFEDTARU: RuntimeError('https://fred.stlouisfed.org/graph/fredgraph.csv -> ReadTimeout(ReadTimeoutError("HTTPSConnectionPool(host=\'fred.stlouisfed.org\', port=443): Read timed out. (read timeout=60)"))')
-[FAIL] fred DTWEXBGS: RuntimeError('https://fred.stlouisfed.org/graph/fredgraph.csv -> ReadTimeout(ReadTimeoutError("HTTPSConnectionPool(host=\'fred.stlouisfed.org\', port=443): Read timed out. (read timeout=60)"))')
-[OK] farside: (732, 14)
-[OK] binance_oi: 1810 rows 2021-12-01 ~ 2026-11-14 (requested 1811)
-[OK] bgeometrics ok=['sth-realized-price(1446)', 'lth-realized-price(1446)', 'realized-price(1455)', 'mvrv-zscore(1455)', 'sth-mvrv(1455)', 'lth-mvrv(1455)', 'nupl(1455)', 'sopr(1455)', 'sth-sopr(1455)', 'lth-sopr(1454)']
-[..] bgeometrics unavailable=['supply-profit:429', 'supply-loss:429', 'puell-multiple:429', 'reserve-risk:429', 'true-market-mean:429', 'active-investor-price:429', 'cvdd:429', 'balanced-price:429', 'terminal-price:429', 'delta-cap:429', 'nrpl-usd:429', 'realized-loss:429', 'rhodl-ratio:429', 'hashribbons:429', 'etf-flow-btc:429', 'etf-btc-total:429', 'open-interest-futures:429', 'funding-rate:429', 'asopr:429', 'vdd-multiple:429', 'exchange-reserve-btc:429', 'thermo-cap:429', 'investor-cap:429', 'nvts:429', 'mvrv:429']
+[OK] polymarket: 495 bitcoin markets (raw keys [('search', 2), ('events_tag', 100), ('events_crypto', 100)])
+[OK] bgeometrics ok=['supply-profit(1461)', 'puell-multiple(1455)', 'cvdd(1450)', 'true-market-mean(1455)', 'balanced-price(1454)', 'terminal-price(1454)', 'reserve-risk(1461)', 'realized-loss(1461)', 'nrpl-usd(1451)', 'etf-flow-btc(701)']
+[..] bgeometrics unavailable=['hashribbons:429']
