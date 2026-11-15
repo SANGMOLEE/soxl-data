@@ -90,18 +90,24 @@ def bitfinex():
     out = out.sort_values("date"); save(out, "BITFINEX_MARGIN.csv"); log(f"[OK] bitfinex margin: {len(out)} rows {out.date.min().date()} ~ {out.date.max().date()}")
 
 def polymarket():
+    raw = {}
+    for nm, url, prm in (("search", "https://gamma-api.polymarket.com/public-search", dict(q="bitcoin", limit_per_type=100)),
+                         ("events_tag", "https://gamma-api.polymarket.com/events", dict(closed="false", tag_slug="bitcoin", limit=200)),
+                         ("events_crypto", "https://gamma-api.polymarket.com/events", dict(closed="false", tag_slug="crypto", limit=300, order="volume", ascending="false"))):
+        try: raw[nm] = get(url, prm, tries=2).json()
+        except Exception as e: raw[nm] = {"error": repr(e)}
+        time.sleep(0.5)
+    json.dump(raw, open(os.path.join(OUT, "POLYMARKET_RAW.json"), "w"))
     rows = []
-    for off in range(0, 6000, 500):
-        try: j = get("https://gamma-api.polymarket.com/markets", dict(closed="false", limit=500, offset=off), tries=2).json()
-        except Exception as e: log(f"[..] polymarket page {off}: {e}"); break
-        if not j: break
-        for m in j:
-            q = (m.get("question") or "")
-            if any(k in q.lower() for k in ("bitcoin", "btc")):
-                rows.append(dict(question=q, outcomes=m.get("outcomes"), prices=m.get("outcomePrices"), end=m.get("endDate"), volume=m.get("volume"), liquidity=m.get("liquidity"), slug=m.get("slug")))
-        if len(j) < 500: break
-        time.sleep(0.3)
-    d = pd.DataFrame(rows); d["fetched_utc"] = dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M"); save(d, "POLYMARKET_BTC.csv"); log(f"[OK] polymarket: {len(d)} bitcoin markets")
+    def walk(ev):
+        for m in ev.get("markets", []) or []:
+            rows.append(dict(event=ev.get("title"), question=m.get("question"), outcomes=m.get("outcomes"), prices=m.get("outcomePrices"), end=m.get("endDate"), volume=m.get("volume"), closed=m.get("closed")))
+    for nm, j in raw.items():
+        evs = j.get("events", []) if isinstance(j, dict) else j
+        for ev in evs or []:
+            if isinstance(ev, dict) and any(k in (ev.get("title") or "").lower() for k in ("bitcoin", "btc")): walk(ev)
+    d = pd.DataFrame(rows).drop_duplicates(["question"]) if rows else pd.DataFrame(columns=["event", "question"]); d["fetched_utc"] = dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    save(d, "POLYMARKET_BTC.csv"); log(f"[OK] polymarket: {len(d)} bitcoin markets (raw keys {[ (k, len(v) if hasattr(v, '__len__') else 0) for k, v in raw.items()]})")
 
 def kalshi():
     rows = []; cur = None
@@ -121,15 +127,17 @@ def kalshi():
 
 def bgeometrics():
     base = "https://bitcoin-data.com/v1/"
-    names = ["sth-realized-price", "lth-realized-price", "realized-price", "mvrv-zscore", "sth-mvrv", "lth-mvrv", "nupl", "sopr", "sth-sopr", "lth-sopr", "supply-profit", "supply-loss",
+    names = ["supply-profit", "puell-multiple", "cvdd", "true-market-mean", "balanced-price", "terminal-price", "reserve-risk", "realized-loss", "nrpl-usd", "etf-flow-btc", "hashribbons", "asopr",
+             "sth-realized-price", "lth-realized-price", "realized-price", "mvrv-zscore", "sth-mvrv", "lth-mvrv", "nupl", "sopr", "sth-sopr", "lth-sopr", "supply-profit", "supply-loss",
              "puell-multiple", "reserve-risk", "true-market-mean", "active-investor-price", "cvdd", "balanced-price", "terminal-price", "delta-cap", "nrpl-usd", "realized-loss", "rhodl-ratio",
              "hashribbons", "etf-flow-btc", "etf-btc-total", "open-interest-futures", "funding-rate", "asopr", "vdd-multiple", "exchange-reserve-btc", "thermo-cap", "investor-cap", "nvts", "mvrv"]
     ok, bad = [], []
-    for n in names:
+    for n in dict.fromkeys(names):
+        if os.path.exists(os.path.join(OUT, "BG_" + n.replace("-", "_") + ".csv")): continue
         try:
             r = S.get(base + n, timeout=60)
             if r.status_code == 429:
-                bad.append(n + ":429"); time.sleep(30); continue
+                bad.append(n + ":429"); break
             if r.status_code != 200: bad.append(f"{n}:{r.status_code}"); time.sleep(2); continue
             j = r.json(); d = pd.DataFrame(j if isinstance(j, list) else j.get("data", j))
             if len(d) < 50: bad.append(n + ":short"); continue
@@ -150,7 +158,7 @@ def yahoo():
 def fred():
     for sid in ("DGS10", "DFEDTARU", "DTWEXBGS"):
         try:
-            r = get("https://fred.stlouisfed.org/graph/fredgraph.csv", dict(id=sid, cosd="2010-01-01")); d = pd.read_csv(io.StringIO(r.text)); d.columns = ["date", "value"]
+            r = get("https://fred.stlouisfed.org/graph/fredgraph.csv", dict(id=sid, cosd="2010-01-01"), timeout=180); d = pd.read_csv(io.StringIO(r.text)); d.columns = ["date", "value"]
             save(d, f"FRED_{sid}.csv"); log(f"[OK] fred {sid}: {len(d)} rows ~ {d.date.iloc[-1]}")
         except Exception as e: log(f"[FAIL] fred {sid}: {e!r}")
 

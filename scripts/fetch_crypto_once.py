@@ -30,6 +30,7 @@ for name, spec in TARGETS.items():
     path = os.path.join(OUT, f"{name}.csv")
     if os.path.exists(path):
         old = pd.read_csv(path, parse_dates=["date"])
+        old = old[old["date"] < old["date"].max() - pd.Timedelta(days=2)]   # 수집 시점에 진행 중이던 최근 봉은 확정값으로 다시 받는다
         df = pd.concat([old, df[df["date"] > old["date"].max()]], ignore_index=True)
     df = df.sort_values("date").drop_duplicates("date")
     df.to_csv(path, index=False)

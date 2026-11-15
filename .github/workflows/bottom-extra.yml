@@ -7,7 +7,6 @@ on:
     branches: [ccr-d4b3886b-gvci67]
     paths:
       - scripts/fetch_bottom_extra.py
-      - scripts/fetch_bottom_extra2.py
       - .github/workflows/bottom-extra.yml
 permissions:
   contents: write
