@@ -178,7 +178,7 @@ if oi is not None:
 
 # ── Bitfinex 마진 롱 ──
 bf = rd(os.path.join(EX2, "BITFINEX_MARGIN.csv"), parse_dates=["date"])
-if bf is not None:
+if bf is not None and len(bf) > 100:
     b = bf.set_index("date").sort_index(); lg = b["long"]
     P("\n### Bitfinex 마진 롱 잔고(BTC): " + ", ".join(f"{k} {lg.asof(d):,.0f} (90일 전 대비 {lg.asof(d) / lg.asof(d - TD(days=90)) - 1:+.0%})" for k, d in CL.items() if d >= lg.dropna().index[0] + TD(days=90)) + f" | 현재 {lg.dropna().iloc[-1]:,.0f} ({lg.dropna().index[-1].date()})")
 
@@ -186,9 +186,9 @@ if bf is not None:
 def bg(name):
     d = rd(os.path.join(EX2, f"BG_{name}.csv"))
     if d is None: return None
-    dc = [x for x in d.columns if x.lower() in ("d", "date", "thedate", "time", "unixts")]; vc = [x for x in d.columns if x not in dc]
-    if not dc or not vc: return None
-    col = dc[0]; idx = pd.to_datetime(d[col], unit="ms") if str(d[col].iloc[0]).isdigit() and len(str(d[col].iloc[0])) >= 12 else pd.to_datetime(d[col], errors="coerce")
+    vc = [x for x in d.columns if x not in ("d", "unixTs")]
+    if "d" not in d.columns or not vc: return None
+    idx = pd.to_datetime(d["d"], errors="coerce")
     s = pd.to_numeric(d[vc[-1]], errors="coerce"); s.index = idx; return s[~s.index.isna()].sort_index()
 bgs = {n: bg(n) for n in ("sth_realized_price", "lth_realized_price", "realized_price", "true_market_mean", "cvdd", "balanced_price", "terminal_price", "mvrv_zscore", "nupl", "sopr", "sth_sopr", "lth_sopr",
                           "supply_profit", "puell_multiple", "reserve_risk", "sth_mvrv", "etf_flow_btc", "etf_btc_total", "asopr", "rhodl_ratio", "delta_cap")}
