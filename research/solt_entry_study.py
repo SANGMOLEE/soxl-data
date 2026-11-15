@@ -1,0 +1,141 @@
+# -*- coding: utf-8 -*-
+"""저점 뒤 '횡보냐 바로 상승이냐'와 2배 상품(SOLT) 진입 시점 비교, 비트코인 예상 저점에서의 SOLT 가격 추정.
+2배 상품은 미국 거래일 종가 사이 수익의 2배에서 연 15% 비용을 뺀 합성 지수로 만든다(실측: SOLT 일수익 = 2.06 × SOL, 괴리 연 -14%).
+SOLT 상장(2025-03-20) 뒤 구간은 실제 SOLT 조정종가를 쓴다.
+실행: python research/solt_entry_study.py → research/output/solt_entry_study.txt
+"""
+import os, sys, numpy as np, pandas as pd
+HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
+import bottom_anatomy as A
+SS = os.path.join(A.DC, "sol_study"); TD = pd.Timedelta; LINES = []; DRAG = 0.15
+def P(*a):
+    s = " ".join(str(x) for x in a); print(s); LINES.append(s)
+CM = pd.read_csv(os.path.join(SS, "CM_PRICES.csv"), parse_dates=["date"]).set_index("date")
+SY = pd.read_csv(os.path.join(A.DC, "SOLUSD.csv"), parse_dates=["date"]).set_index("date").close       # Yahoo, 당일 진행 봉 포함
+CM.loc[SY.index[-1], "sol"] = SY.iloc[-1] if SY.index[-1] not in CM.index or pd.isna(CM.sol.get(SY.index[-1], np.nan)) else CM.sol[SY.index[-1]]
+BY = pd.read_csv(os.path.join(A.DC, "BTCUSD.csv"), parse_dates=["date"]).set_index("date").close
+if BY.index[-1] not in CM.index or pd.isna(CM.btc.get(BY.index[-1], np.nan)): CM.loc[BY.index[-1], "btc"] = BY.iloc[-1]
+CM = CM.sort_index()
+SOLT = pd.read_csv(os.path.join(A.DC, "SOLT.csv"), parse_dates=["date"]).set_index("date").adj_close
+S30 = pd.read_csv(os.path.join(SS, "BINANCE_30M_SOLUSDT.csv.gz")); S30["date"] = pd.to_datetime(S30["date"], format="mixed"); S30 = S30.set_index("date").sort_index()
+B30 = pd.read_csv(os.path.join(SS, "BINANCE_30M_BTCUSDT.csv.gz")); B30["date"] = pd.to_datetime(B30["date"], format="mixed"); B30 = B30.set_index("date").sort_index()
+
+def lev2(asset, real=None):
+    """미국 거래일(월~금) 종가 기준 2배 합성 지수. real 이 있으면 그 시작일부터 실제 수익으로 잇는다."""
+    p = CM[asset].dropna(); bd = pd.bdate_range(p.index[0], p.index[-1]); q = p.reindex(bd, method="ffill"); r = q.pct_change().fillna(0)
+    lr = (2 * r - DRAG / 252).clip(lower=-0.95)
+    if real is not None:
+        rr = real.pct_change(); lr.loc[rr.dropna().index.intersection(lr.index)] = rr.dropna().reindex(lr.index).dropna()
+    return (1 + lr).cumprod(), q
+L2 = {"sol": lev2("sol", SOLT), "eth": lev2("eth"), "btc": lev2("btc"), "ltc": lev2("ltc")}
+btc = CM.btc.dropna(); bma200 = btc.rolling(200).mean(); bhi150 = btc.shift(1).rolling(150).max()
+def first(mask):
+    m = mask[mask.fillna(False)]; return m.index[0] if len(m) else None
+def nb(idx, d):                      # d 이후 첫 거래일
+    i = idx.searchsorted(d); return idx[min(i, len(idx) - 1)]
+
+# ───────────────────────── 1. 저점 뒤 경로: 횡보인가 바로 상승인가 ─────────────────────────
+EPIS = [("BTC 2015", "btc", "2015-01-14"), ("BTC 2018", "btc", "2018-12-15"), ("BTC 2020", "btc", "2020-03-12"), ("BTC 2022", "btc", "2022-11-21"),
+        ("LTC 2015", "ltc", "2015-01-14"), ("ETH 2018", "eth", "2018-12-15"), ("ETH 2020", "eth", "2020-03-12"), ("ETH 2022", "eth", "2022-06-18"),
+        ("SOL 2020", "sol", "2020-12-23"), ("SOL 2022", "sol", "2022-12-29"), ("SOL 2026(진행)", "sol", "2026-06-06")]
+def paths():
+    P("== 1. 저점 뒤 1년의 모양 (일별 종가). 반사 반등 = 저점 뒤 60일 안의 최고 종가, 눌림 = 그 고점 뒤 240일 안의 최저 종가")
+    P("   자산·저점 | 반사 반등 (며칠째) | 그 뒤 눌림 (고점 대비, 저점 대비, 며칠째) | 반사 고점을 다시 넘은 날 | 저점 +15% 이내 종가 일수(1년) | 1x: 90일·180일·365일 | 2x: 90일·180일·365일")
+    for nm, a, d in EPIS:
+        p = CM[a].dropna(); d0 = p[pd.Timestamp(d) - TD(days=5):pd.Timestamp(d) + TD(days=5)].idxmin(); p0 = p[d0]; seg = p[d0:d0 + TD(days=365)]
+        hd = seg[:d0 + TD(days=60)].idxmax(); hv = seg[hd]; after = seg[hd:hd + TD(days=240)]; ld = after.idxmin(); lv = after.min()
+        re = first(p[ld:d0 + TD(days=900)] > hv); v2, q = L2[a]; e = nb(v2.index, d0)
+        f1 = lambda n: (p.asof(d0 + TD(days=n)) / p0 - 1) if d0 + TD(days=n) <= p.index[-1] else np.nan
+        f2 = lambda n: (v2.asof(d0 + TD(days=n)) / v2[e] - 1) if d0 + TD(days=n) <= v2.index[-1] else np.nan
+        P(f"   {nm:14s} {d0.date()} | {hv / p0 - 1:+5.0%} ({(hd - d0).days}일) | {lv / hv - 1:+4.0%}, 저점 {lv / p0 - 1:+4.0%} ({(ld - d0).days}일) | " + (f"{(re - d0).days}일째" if re is not None else "아직") + f" | {int((seg <= p0 * 1.15).sum())}일 | {f1(90):+5.0%} {f1(180):+5.0%} {f1(365):+6.0%} | {f2(90):+5.0%} {f2(180):+5.0%} {f2(365):+6.0%}")
+
+# ───────────────────────── 2. 2배 상품 진입 시점 비교 ─────────────────────────
+def entries():
+    P("\n== 2. 2배 상품을 언제 샀을 때 결과가 좋았나. 값 = 저점일에 1을 들고 있다가 해당 시점에 2배 상품을 사서 평가일까지 보유했을 때의 자산(1 = 본전, 매수 전에는 현금)")
+    P("   평가일: 저점 +180일 / +365일 / +540일. 괄호 = 매수 뒤 평가일(+365일)까지 겪은 최대 손실")
+    rows = []
+    for nm, a, d in EPIS:
+        if a == "btc": continue
+        p = CM[a].dropna(); d0 = p[pd.Timestamp(d) - TD(days=5):pd.Timestamp(d) + TD(days=5)].idxmin(); p0 = p[d0]; v2, q = L2[a]; seg = p[d0:d0 + TD(days=540)]
+        hd = seg[:d0 + TD(days=60)].idxmax()
+        E = {"저점일 종가(이상적)": d0, "저점 다음 거래일": nb(v2.index, d0 + TD(days=1)), "저점 +20% 확인": first(seg >= p0 * 1.20), "저점 +50% 확인": first(seg >= p0 * 1.50),
+             "30일 뒤": d0 + TD(days=30), "60일 뒤": d0 + TD(days=60), "90일 뒤": d0 + TD(days=90),
+             "반사 고점에서 -30% 눌림": first(seg[hd:] <= seg[hd] * 0.70), "반사 고점에서 -45% 눌림": first(seg[hd:] <= seg[hd] * 0.55),
+             "BTC 200일선 회복": first((btc[d0 + TD(days=3):d0 + TD(days=540)] > bma200[d0 + TD(days=3):d0 + TD(days=540)])),
+             "BTC 150일 신고가": first((btc[d0 + TD(days=20):d0 + TD(days=540)] > bhi150[d0 + TD(days=20):d0 + TD(days=540)]))}
+        P(f"\n   [{nm}] 저점 {d0.date()} ${p0:,.2f}")
+        for k, t in E.items():
+            if t is None or t > v2.index[-1]: P(f"      {k:22s} | 해당 없음"); continue
+            e = nb(v2.index, t); vals = []
+            for n in (180, 365, 540):
+                T = d0 + TD(days=n)
+                vals.append(f"{(v2.asof(T) / v2[e]) if (T <= v2.index[-1] and T >= e) else (1.0 if T < e else np.nan):6.2f}")
+            end = min(d0 + TD(days=365), v2.index[-1]); w = v2[e:end]; mdd = (w / w.cummax() - 1).min() if len(w) > 1 else 0; under = (w.min() / v2[e] - 1) if len(w) > 1 else 0
+            rows.append((nm, k, float(vals[1]) if vals[1].strip() != "nan" else np.nan))
+            cur = f" | 현재까지 {v2.iloc[-1] / v2[e]:.2f}" if d0 + TD(days=180) > v2.index[-1] else ""
+            P(f"      {k:22s} | 매수 {e.date()} (저점 {(e - d0).days:3d}일 뒤, 기초자산 저점 대비 {p.asof(e) / p0 - 1:+5.0%}) | {vals[0]} / {vals[1]} / {vals[2]} | (고점 대비 {mdd:+.0%}, 매수가 대비 최저 {under:+.0%}){cur}")
+    R = pd.DataFrame(rows, columns=["ep", "rule", "v365"]).dropna(); piv = R.pivot(index="rule", columns="ep", values="v365")
+    P("\n   ── 진입 규칙별 +365일 자산 요약 (에피소드별 순위 평균이 낮을수록 좋음)")
+    rk = piv.rank(ascending=False); order = rk.mean(axis=1).sort_values().index
+    for k in order: P(f"      {k:22s} | 평균 순위 {rk.loc[k].mean():.1f} | 중앙값 {piv.loc[k].median():.2f} | 최저 {piv.loc[k].min():.2f} | " + ", ".join(f"{c} {piv.loc[k, c]:.2f}" for c in piv.columns if pd.notna(piv.loc[k, c])))
+
+# ───────────────────────── 3. 미국 장 시간 문제: 저점이 장 밖에서 찍히면 ─────────────────────────
+def us_hours():
+    P("\n== 3. 솔라나 저점 뒤 첫 미국 장에서 살 수 있었던 가격 (Binance 30분봉). SOLT는 미국 장 시간에만 거래된다")
+    P("   SOL 저점 시각(UTC) | 미국 동부 시각 | 다음 프리마켓 04:00 ET 가격(저점 대비) | 다음 정규장 개장 09:30 ET | 그날 종가 16:00 ET")
+    EV = ["2021-05-19", "2021-06-22", "2022-05-12", "2022-06-14", "2022-11-09", "2022-12-29", "2023-06-10", "2023-09-11", "2024-08-05", "2025-04-07", "2026-02-06", "2026-06-06", "2026-08-01", "2026-11-14"]
+    res = []
+    for v in EV:
+        t0 = pd.Timestamp(v); w = S30.low[t0 - TD(days=1):t0 + TD(days=1, hours=12)]
+        if not len(w): continue
+        tl = w.idxmin(); L = w.min(); et = tl.tz_localize("UTC").tz_convert("America/New_York")
+        def nxt(hh, mm):
+            day = et.normalize()
+            for k in range(0, 6):
+                c = (day + TD(days=k)).replace(hour=hh, minute=mm)
+                if c > et and c.weekday() < 5: return c.tz_convert("UTC").tz_localize(None)
+        pm, op, cl = nxt(4, 0), nxt(9, 30), nxt(16, 0)
+        g = lambda t: S30.close.asof(t) / L - 1 if t <= S30.index[-1] else np.nan
+        res.append((g(pm), g(op), g(cl)))
+        P(f"   {tl:%Y-%m-%d %H:%M} | {et:%a %H:%M} | {pm:%m-%d %H:%M} {g(pm):+5.1%} | {op:%m-%d %H:%M} {g(op):+5.1%} | {g(cl):+5.1%}")
+    r = np.array(res); P(f"   → 중앙값: 프리마켓 {np.nanmedian(r[:, 0]):+.1%}, 정규장 개장 {np.nanmedian(r[:, 1]):+.1%}, 종가 {np.nanmedian(r[:, 2]):+.1%} | 정규장 개장가가 저점 +10% 이상이었던 경우 {int(np.nansum(r[:, 1] >= 0.10))}/{len(r)}")
+
+# ───────────────────────── 4. 비트코인 예상 저점에서의 SOLT 가격 ─────────────────────────
+def solt_projection():
+    idx = SOLT.index; cu = (idx.tz_localize("America/New_York") + TD(hours=16)).tz_convert("UTC").tz_localize(None); sol_at = pd.Series([S30.close.asof(t) for t in cu], index=idx); btc_at = pd.Series([B30.close.asof(t) for t in cu], index=idx)
+    P("\n== 4. 비트코인 예상 저점에서의 SOLT 가격 추정")
+    # (가) 하락 구간별 실측: SOL 대 BTC 로그 배율, SOLT 대 SOL
+    LEGS = [("2025-10-06", "2025-11-21"), ("2026-01-14", "2026-02-05"), ("2026-05-12", "2026-06-05"), ("2026-09-21", "2026-11-13")]
+    P("   (가) 최근 하락 구간 실측 (미국 종가 시각 기준). 로그 배율 = ln(SOL 변화) ÷ ln(BTC 변화)")
+    bet = []
+    for a, b in LEGS:
+        a_, b_ = nb(idx, pd.Timestamp(a)), nb(idx, pd.Timestamp(b)); rb = btc_at[b_] / btc_at[a_]; rs = sol_at[b_] / sol_at[a_]; rt = SOLT[b_] / SOLT[a_]; be = np.log(rs) / np.log(rb); bet.append(be)
+        n = len(idx[(idx > a_) & (idx <= b_)]); pred = rs ** 2
+        P(f"      {a_.date()} → {b_.date()} ({n}거래일): BTC {rb - 1:+.0%}, SOL {rs - 1:+.0%} (로그 배율 {be:.2f}), SOLT {rt - 1:+.0%} | SOL 비율의 제곱 {pred - 1:+.0%} → 실제와의 차이 {rt / pred - 1:+.1%}")
+    P(f"      로그 배율 범위 {min(bet):.2f} ~ {max(bet):.2f}, 중앙값 {np.median(bet):.2f}")
+    # (나) 현재 기준점
+    sol_fri = sol_at.iloc[-1]; btc_fri = btc_at.iloc[-1]; solt_fri = SOLT.iloc[-1]; sol_now = SY.iloc[-1]; btc_now = BY.iloc[-1]
+    solt_now = solt_fri * (1 + 2.06 * (sol_now / sol_fri - 1))
+    sd = np.log(sol_at).diff().iloc[-60:].std()
+    P(f"   (나) 기준점: SOLT 마지막 종가 ${solt_fri:.2f} ({idx[-1].date()}, 그때 SOL ${sol_fri:.2f}, BTC ${btc_fri:,.0f}) | 지금 SOL ${sol_now:.2f}, BTC ${btc_now:,.0f} ({SY.index[-1].date()}, 진행 중) → 지금 가격이 다음 미국 종가까지 유지되면 SOLT 약 ${solt_now:.2f} | SOLT 역대 최저 종가 ${SOLT.min():.2f} ({SOLT.idxmin().date()})")
+    P(f"       최근 60거래일 SOL 변동성 {sd:.1%}/거래일 → 2배 상품의 변동성 손실 약 {sd ** 2:.2%}/거래일")
+    # (다) 시나리오
+    P("   (다) 비트코인 가격별 추정. SOL = 지금 SOL × (BTC 목표 ÷ 지금 BTC)^배율. SOLT = 지금 SOLT 추정 × (SOL 비율)² × 경로 손실")
+    P("       BTC 목표 | BTC 변화 | SOL (배율 1.3 / 1.5 / 1.75) | SOLT 빠른 하락 5거래일 (1.3 / 1.5 / 1.75) | SOLT 느린 하락 30거래일 (배율 1.5) | 지금 SOLT 추정 대비 (배율 1.5, 빠름)")
+    out = []
+    for tgt in (62000, 60000, 57735, 55000, 54000, 53000, 50000, 48000, 46000, 42000):
+        rb = tgt / btc_now; sols = [sol_now * rb ** b for b in (1.3, 1.5, 1.75)]
+        fast = [solt_now * (s / sol_now) ** 2 * np.exp(-sd ** 2 * 5) * (1 - DRAG) ** (5 / 252) for s in sols]; slow = solt_now * (sols[1] / sol_now) ** 2 * np.exp(-sd ** 2 * 30) * (1 - DRAG) ** (30 / 252)
+        out.append((tgt, sols[1], fast[1]))
+        P(f"       ${tgt:>6,} | {rb - 1:+5.0%} | ${sols[0]:5.1f} / ${sols[1]:5.1f} / ${sols[2]:5.1f} | ${fast[0]:5.2f} / ${fast[1]:5.2f} / ${fast[2]:5.2f} | ${slow:5.2f} | {fast[1] / solt_now - 1:+.0%}")
+    # (라) 그 저점에서 사서 SOL 이 회복하면
+    P("   (라) 참고: BTC $54,000 시나리오(배율 1.5)의 SOLT에서 샀을 때, SOL이 다음 가격까지 60거래일에 걸쳐 오르면 (같은 제곱 근사, 변동성 손실 반영)")
+    s0 = [o for o in out if o[0] == 54000][0]
+    for st_ in (70, 80, 100, 122, 150, 200):
+        v = s0[2] * (st_ / s0[1]) ** 2 * np.exp(-sd ** 2 * 60) * (1 - DRAG) ** (60 / 252); P(f"       SOL ${st_} ({st_ / s0[1] - 1:+.0%}) → SOLT 약 ${v:.1f} ({v / s0[2] - 1:+.0%})")
+    # (마) 과거 솔라나 저점에서의 실제 SOLT 값
+    P("   (마) 실제 SOLT 종가: " + ", ".join(f"{d} ${SOLT.asof(pd.Timestamp(d)):.2f}" for d in ("2025-04-08", "2025-09-18", "2026-02-06", "2026-06-05", "2026-06-10", "2026-07-01", "2026-08-03", "2026-09-21", "2026-11-13")))
+
+if __name__ == "__main__":
+    paths(); entries(); us_hours(); solt_projection()
+    open(os.path.join(HERE, "output", "solt_entry_study.txt"), "w").write("\n".join(LINES) + "\n")
