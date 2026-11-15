@@ -1,27 +1,27 @@
 {
- "date": "2026-11-14",
- "close": 66545,
- "ret": -0.025,
- "z60": -1.18,
- "vol_ratio": 1.22,
- "rsi_d": 22.6,
- "dd_ath": -0.4727,
+ "date": "2026-11-15",
+ "close": 64637,
+ "ret": 0.0079,
+ "z60": 0.36,
+ "vol_ratio": 2.04,
+ "rsi_d": 22.1,
+ "dd_ath": -0.4878,
  "zone": true,
  "phase": 0,
  "phase_name": "피날레 음봉 없음",
  "finale_today": false,
  "cap_today": false,
- "sd60": 0.0212,
- "next_finale_close": 61029,
- "next_cap_close": 64639,
+ "sd60": 0.0223,
+ "next_finale_close": 56971,
+ "next_cap_close": 60550,
  "zone_price": 69409,
  "L": null,
  "L_date": null,
  "retest_below": null,
  "recent_cap_days": [
-  "2026-06-02",
   "2026-11-05",
-  "2026-11-13"
+  "2026-11-13",
+  "2026-11-14"
  ],
- "mvrv": 1.267
+ "mvrv": 1.188
 }

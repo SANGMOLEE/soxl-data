@@ -97,7 +97,6 @@ def polymarket():
         try: raw[nm] = get(url, prm, tries=2).json()
         except Exception as e: raw[nm] = {"error": repr(e)}
         time.sleep(0.5)
-    json.dump(raw, open(os.path.join(OUT, "POLYMARKET_RAW.json"), "w"))
     rows = []
     def walk(ev):
         for m in ev.get("markets", []) or []:

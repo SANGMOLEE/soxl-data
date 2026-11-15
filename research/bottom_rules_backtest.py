@@ -191,7 +191,7 @@ def bg(name):
     idx = pd.to_datetime(d["d"], errors="coerce")
     s = pd.to_numeric(d[vc[-1]], errors="coerce"); s.index = idx; return s[~s.index.isna()].sort_index()
 bgs = {n: bg(n) for n in ("sth_realized_price", "lth_realized_price", "realized_price", "true_market_mean", "cvdd", "balanced_price", "terminal_price", "mvrv_zscore", "nupl", "sopr", "sth_sopr", "lth_sopr",
-                          "supply_profit", "puell_multiple", "reserve_risk", "sth_mvrv", "etf_flow_btc", "etf_btc_total", "asopr", "rhodl_ratio", "delta_cap")}
+                          "supply_profit", "puell_multiple", "reserve_risk", "sth_mvrv", "realized_loss", "nrpl_usd")}
 have = {k: v for k, v in bgs.items() if v is not None and len(v) > 50}
 if have:
     P("\n### BGeometrics 무료 온체인 자료: 사이클 저점일 값과 현재 값")
@@ -201,17 +201,60 @@ if have:
         if n in have:
             s = have[n].reindex(c.index, method="ffill"); P(f"   가격 ÷ {n}: " + ", ".join(f"{k} {l[d] / s[d]:.2f}" for k, d in CL.items() if s[d] == s[d]) + f" | 현재 {c.iloc[-1] / s.iloc[-1]:.2f} (수준 ${s.iloc[-1]:,.0f})")
 
+# ── 실현손실 급증일 ──
+rl = bg("realized_loss")
+if rl is not None:
+    rl = rl.abs()
+    P("\n### 실현손실(달러, BGeometrics) 상위 12일 (2022-11~)과 그날 종가 대비 추가 하락")
+    for d, v in rl.nlargest(12).sort_index().items():
+        dd = c.index[c.index.get_indexer([d], method="nearest")[0]]; m = outcome(dd)[0]
+        P(f"   {d.date()} ${v / 1e9:.2f}B | 종가 ${c[dd]:,.0f} | 추가 하락 {m:+.0%}")
+    P(f"   최근 7일: " + ", ".join(f"{d.date()} ${v / 1e9:.2f}B" for d, v in rl.dropna().iloc[-7:].items()))
+    sp = bg("supply_profit")
+    if sp is not None:
+        tot = pd.read_csv(os.path.join(EX, "BTC_ONCHAIN_EXTRA.csv"), parse_dates=["date"]).set_index("date").SplyCur; pct = (sp / tot.reindex(sp.index, method="ffill")).dropna()
+        P("   이익 상태 물량 비율(이익 물량 ÷ 총공급): " + ", ".join(f"{k} {pct.asof(d):.1%}" for k, d in CL.items() if d >= pct.index[0]) + f" | 현재 {pct.iloc[-1]:.1%} ({pct.index[-1].date()}), 2026년 최저 {pct['2026'].min():.1%} ({pct['2026'].idxmin().date()}), 2022-11~ 최저 {pct.min():.1%} ({pct.idxmin().date()})")
+
+# ── 현물 ETF 흐름 (Farside) ──
+ef = rd(os.path.join(EX2, "ETF_FLOWS_FARSIDE.csv"))
+if ef is not None:
+    ef = ef[ef["Date"].astype(str).str.match(r"\d{2} \w{3} \d{4}")].copy(); ef["date"] = pd.to_datetime(ef["Date"], format="%d %b %Y")
+    num = lambda x: pd.to_numeric(str(x).replace(",", "").replace("(", "-").replace(")", ""), errors="coerce")
+    tot = ef.set_index("date")["Total"].map(num).dropna().sort_index()
+    neg = tot < 0; streak = neg.astype(int).groupby((~neg).cumsum()).cumsum(); s5 = tot.rolling(5).sum(); s10 = tot.rolling(10).sum(); s35 = tot.rolling(35).sum()
+    P(f"\n### 미국 현물 ETF 순유입 (Farside, 백만 달러, {tot.index[0].date()} ~ {tot.index[-1].date()})")
+    for k, d in {"2024-08": pd.Timestamp("2024-08-05"), "2025-04": pd.Timestamp("2025-04-07"), "2025-11": pd.Timestamp("2025-11-21"), "2026-02": CL["2026-02"], "2026-06-05": pd.Timestamp("2026-06-05"), "2026-07": CL["2026-07"], "현재": tot.index[-1]}.items():
+        P(f"   {k} {d.date()}: 당일 {tot.asof(d):+,.0f} | 5일 합 {s5.asof(d):+,.0f} | 10일 합 {s10.asof(d):+,.0f} | 35일(7주) 합 {s35.asof(d):+,.0f} | 연속 유출 {int(streak.asof(d))}일")
+    P("   5일 합 역대 최저 8회: " + ", ".join(f"{d.date()} {v:+,.0f}" for d, v in s5.nsmallest(40).sort_index().groupby(pd.Grouper(freq='30D')).min().dropna().nsmallest(8).sort_index().items()))
+    ev = first_days((s10 <= -2000).reindex(c.index).fillna(False), gap=30)
+    report("ETF 10거래일 순유출 20억 달러 이상 첫 발생 (30일 간격)", ev)
+    P(f"   누적 순유입 ${tot.sum() / 1e3:,.1f}B, 고점 대비 {tot.cumsum().iloc[-1] - tot.cumsum().max():+,.0f}M")
+
+# ── 스트래티지(MSTR) ──
+ms = rd(os.path.join(EX2, "Y_MSTR.csv"), parse_dates=["date"])
+if ms is not None:
+    m = ms.set_index("date").close; ratio = (m / c.reindex(m.index)).dropna()
+    P("\n### MSTR 주가 ÷ BTC 가격 (mNAV 대용, 주식 수 변화 미반영): " + ", ".join(f"{k} {ratio.asof(d) * 1e3:.2f}" for k, d in CL.items() if d >= ratio.index[0]) + f" | 현재 {ratio.iloc[-1] * 1e3:.2f} ({ratio.index[-1].date()}), 2026년 최저 {ratio['2026'].min() * 1e3:.2f} ({ratio['2026'].idxmin().date()})")
+
+# ── ETH/BTC, 나스닥, 달러 ──
+et = rd(os.path.join(EX2, "Y_ETHUSD.csv"), parse_dates=["date"]); nq = rd(os.path.join(EX2, "Y_NASDAQ.csv"), parse_dates=["date"]); dx = rd(os.path.join(EX2, "Y_DXY.csv"), parse_dates=["date"])
+if nq is not None:
+    n = nq.set_index("date").close; ndd = n / n.cummax() - 1
+    P("\n### 나스닥 종합지수의 고점 대비 낙폭: " + ", ".join(f"{k} {ndd.asof(d):+.0%}" for k, d in CL.items()) + f" | 현재 {ndd.iloc[-1]:+.1%} ({ndd.index[-1].date()})")
+if dx is not None:
+    x = dx.set_index("date").close; P("### 달러지수 60일 변화: " + ", ".join(f"{k} {x.asof(d) / x.asof(d - TD(days=60)) - 1:+.1%}" for k, d in CL.items()) + f" | 현재 {x.iloc[-1] / x.asof(x.index[-1] - TD(days=60)) - 1:+.1%} (수준 {x.iloc[-1]:.1f})")
+
+# ── 원화 기준 가격 ──
+if up is not None:
+    kc = up.set_index("date"); kl = kc.low; P(f"\n### 업비트 원화 가격: 2026-02-06 저가 {kl.asof(pd.Timestamp('2026-02-06')):,.0f}원, 2026-06~07 최저 {kl['2026-06-01':'2026-07-31'].min():,.0f}원 ({kl['2026-06-01':'2026-07-31'].idxmin().date()}), 최근 5일 저가 " + ", ".join(f"{d.date()} {v:,.0f}" for d, v in kl.iloc[-5:].items()) + f" | 2026년 최저 {kl['2026'].min():,.0f}원 ({kl['2026'].idxmin().date()})")
+
 # ── 예측 시장 ──
 pm = rd(os.path.join(EX2, "POLYMARKET_BTC.csv"))
 if pm is not None and len(pm):
-    P(f"\n### 폴리마켓 비트코인 계약 (수집 {pm.fetched_utc.iloc[0]} UTC, 거래량 상위·가격 수준 관련)")
-    pm["volume"] = pd.to_numeric(pm.volume, errors="coerce"); q = pm[pm.question.str.contains(r"\$|dip|low|below|above|reach|hit", case=False, regex=True)].sort_values("volume", ascending=False).head(40)
-    for _, r in q.iterrows(): P(f"   {r.question} | {r.outcomes} = {r.prices} | 만기 {str(r.end)[:10]} | 거래량 ${r.volume:,.0f}")
-ka = rd(os.path.join(EX2, "KALSHI_BTC.csv"))
-if ka is not None and len(ka):
-    P(f"\n### 칼시 비트코인 계약 (수집 {ka.fetched_utc.iloc[0]} UTC)")
-    ka["volume"] = pd.to_numeric(ka.volume, errors="coerce")
-    for _, r in ka.sort_values("volume", ascending=False).head(30).iterrows(): P(f"   {r.event} / {r.market} {r.subtitle} | yes {r.yes_bid}~{r.yes_ask} (최근 {r['last']}) | 마감 {str(r.close)[:10]} | 거래량 {r.volume:,.0f}")
+    pm["volume"] = pd.to_numeric(pm.volume, errors="coerce"); pm = pm[pm.closed.astype(str).str.lower() != "true"]
+    q = pm[pm.question.astype(str).str.contains(r"dip|low|below|less than|drop|fall|reach|hit|above", case=False, regex=True)].sort_values("volume", ascending=False).head(45)
+    P(f"\n### 폴리마켓 비트코인 계약 (수집 {pm.fetched_utc.iloc[0]} UTC, 가격 수준 관련 거래량 상위)")
+    for _, r in q.iterrows(): P(f"   [{r.event}] {r.question} | {r.outcomes} = {r.prices} | 만기 {str(r.end)[:10]} | 거래량 ${r.volume:,.0f}")
 
 os.makedirs(os.path.join(HERE, "output"), exist_ok=True)
 open(os.path.join(HERE, "output", "bottom_rules_backtest.txt"), "w").write("\n".join(LINES) + "\n")
