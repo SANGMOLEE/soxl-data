@@ -4,14 +4,15 @@
 """
 import os, json, pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-s = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date")["adj_close"].dropna()
+SX = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
+s = SX["adj_close"]
 btc = pd.read_csv(f"{ROOT}/data/crypto/BTCUSD.csv", parse_dates=["date"]).set_index("date")["close"].dropna()
 r = s.pct_change() * 100
 top = r.nsmallest(10)
 PAD = 30
 out = []
 for rank, (d, v) in enumerate(top.items(), 1):
-    w = s.loc[d - pd.Timedelta(days=PAD): d + pd.Timedelta(days=PAD)]
+    w = SX.loc[d - pd.Timedelta(days=PAD): d + pd.Timedelta(days=PAD)]
     prev = s.loc[:d].iloc[-2]; c0 = s[d]
     after = s.loc[d + pd.Timedelta(days=1): d + pd.Timedelta(days=PAD)]
     pre = s.loc[d - pd.Timedelta(days=PAD): d - pd.Timedelta(days=1)]
@@ -28,7 +29,7 @@ for rank, (d, v) in enumerate(top.items(), 1):
               low_after_pct=(round(float(after.min() / c0 - 1) * 100, 1) if len(after) else None),
               pre_high_pct=(round(float(c0 / pre.max() - 1) * 100, 1) if len(pre) else None),
               btc_same=b_same)
-    out.append(dict(**st, series=[[x.strftime("%Y-%m-%d"), round(float(y), 4)] for x, y in w.items()]))
+    out.append(dict(**st, series=[[x.strftime("%Y-%m-%d"), round(float(q.open), 4), round(float(q.high), 4), round(float(q.low), 4), round(float(q.close), 4), int(q.volume) if pd.notna(q.volume) else 0] for x, q in w.iterrows()]))
     print(rank, st)
 t = open(f"{ROOT}/research/charts/soxl_top_drops_template.html", encoding="utf-8").read()
 open(f"{ROOT}/research/charts/soxl_top_drops.html", "w", encoding="utf-8").write(t.replace("__DATA__", json.dumps(out, ensure_ascii=False)))

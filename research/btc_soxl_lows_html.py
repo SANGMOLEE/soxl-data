@@ -5,8 +5,9 @@
 """
 import os, json, pandas as pd, numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-btc = pd.read_csv(f"{ROOT}/data/crypto/BTCUSD.csv", parse_dates=["date"]).set_index("date")["close"].dropna()
-sox = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date")["adj_close"].dropna()
+BT = pd.read_csv(f"{ROOT}/data/crypto/BTCUSD.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
+SX = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
+btc = BT["close"]; sox = SX["adj_close"]
 WINDOWS = [
     ("2015-01-14", "2015-01 저점", "확정 저점 ①"),
     ("2018-12-15", "2018-12 저점", "확정 저점 ②"),
@@ -16,9 +17,9 @@ WINDOWS = [
     ("2026-11-20", "현재 2026-11", "진행 중 — SOXL 자료는 2026-10-26까지"),
 ]
 PAD = 200
-def seg(s, t):
-    w = s.loc[t - pd.Timedelta(days=PAD): t + pd.Timedelta(days=PAD)]
-    return [[d.strftime("%Y-%m-%d"), round(float(v), 4)] for d, v in w.items()]
+def seg(df, t):
+    w = df.loc[t - pd.Timedelta(days=PAD): t + pd.Timedelta(days=PAD)]
+    return [[d.strftime("%Y-%m-%d"), round(float(r.open), 4), round(float(r.high), 4), round(float(r.low), 4), round(float(r.close), 4), int(r.volume) if pd.notna(r.volume) else 0] for d, r in w.iterrows()]
 out = []
 for d, name, note in WINDOWS:
     t = pd.Timestamp(d)
@@ -33,7 +34,7 @@ for d, name, note in WINDOWS:
         for nm, ser in (("btc", btc), ("soxl", sox)):
             a = ser.loc[:t]; b2 = ser.loc[:t + pd.Timedelta(days=h)]
             if len(a) and len(b2) and b2.index[-1] > t: stats[f"{nm}_{h}"] = round(float(b2.iloc[-1] / a.iloc[-1] - 1) * 100, 1)
-    out.append(dict(date=d, name=name, note=note, btc=seg(btc, t), soxl=seg(sox, t), stats=stats))
+    out.append(dict(date=d, name=name, note=note, btc=seg(BT, t), soxl=seg(SX, t), stats=stats))
 json.dump(out, open("/tmp/btc_soxl_windows.json", "w"), ensure_ascii=False)
 for w in out: print(w["name"], w["stats"], len(w["btc"]), len(w["soxl"]))
 t = open(f"{ROOT}/research/charts/btc_soxl_lows_template.html", encoding="utf-8").read()

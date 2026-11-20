@@ -32,6 +32,10 @@ svg{display:block;width:100%;height:auto}
 .axis text{fill:var(--t3);font-size:11px}
 .axis line{stroke:var(--line)}
 .ser{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+:root{--up:#008300;--dn:#e34948}@media (prefers-color-scheme:dark){:root{--up:#0ca30c;--dn:#e66767}}
+body.kr{--up:#e34948;--dn:#2a78d6}@media (prefers-color-scheme:dark){body.kr{--up:#e66767;--dn:#3987e5}}
+.c-up{fill:var(--up);stroke:var(--up)}.c-dn{fill:var(--dn);stroke:var(--dn)}.v-up{fill:var(--up);opacity:.35}.v-dn{fill:var(--dn);opacity:.35}
+.tip table{border:0;background:none;font-size:12px;width:auto}.tip td{padding:1px 6px 1px 0;border:0;text-align:left}.tip td+td{text-align:right;font-weight:600;color:var(--t1)}
 .mark{stroke:var(--mark);stroke-width:1;stroke-dasharray:4 3}
 .lowm{stroke:var(--low);stroke-width:1;stroke-dasharray:2 3}
 .cross{stroke:var(--t3);stroke-width:1;pointer-events:none}
@@ -59,11 +63,12 @@ details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;
 <body>
 <div class="wrap">
 <h1>BTC 사이클 저점 전후 × SOXL</h1>
-<p class="sub">BTC 확정 저점 4곳과 검증 대상 2026-06-30, 그리고 현재 구간을 같은 날짜축에서 SOXL과 나란히 본다. 세로 점선 = BTC 저점일, 빨간 점선 = 그 창 안 SOXL 최저일. 종가 기준(SOXL은 조정 종가).</p>
+<p class="sub">BTC 확정 저점 4곳과 검증 대상 2026-06-30, 그리고 현재 구간을 같은 날짜축에서 SOXL과 나란히 본다. 세로 점선 = BTC 저점일, 빨간 점선 = 그 창 안 SOXL 최저일. 일봉(시·고·저·종가)과 거래량. SOXL은 거래일만 있어 주말이 비고, BTC는 매일 거래된다.</p>
 <div class="row"><span class="lbl">구간</span><div class="tabs" id="tabs"></div></div>
 <div class="row">
  <span class="lbl">앞뒤</span><div class="seg" id="rng"></div>
- <span class="lbl" style="margin-left:10px">보기</span><div class="seg" id="mode"><button data-m="price" class="on">가격 2단</button><button data-m="index">지수화(BTC 저점일=100)</button></div>
+ <span class="lbl" style="margin-left:10px">보기</span><div class="seg" id="mode"><button data-m="price" class="on">일봉 2단</button><button data-m="index">지수화(BTC 저점일=100)</button></div>
+ <span class="lbl" style="margin-left:10px">캔들 색</span><div class="seg" id="colmode"><button data-c="tv" class="on">초록↑ 빨강↓</button><button data-c="kr">빨강↑ 파랑↓</button></div>
 </div>
 <div class="note" id="note"></div>
 <div class="stats" id="stats"></div>
@@ -98,18 +103,18 @@ function render(){
  const b=slice(w.btc,t0), s=slice(w.soxl,t0), st=w.stats;
  const sm=document.getElementById("stats");sm.innerHTML="";
  const add=(k,v,small)=>{const d=el("div",{class:"st"});d.append(el("div",{class:"k"},k));const vv=el("div",{class:"v"},v);if(small)vv.append(el("small",{},small));d.append(vv);sm.append(d)};
- const bl=w.btc.find(p=>p[0]===w.date); add("BTC 저점일 종가",bl?fmtUSD(bl[1]):"—",w.date);
+ const bl=w.btc.find(p=>p[0]===w.date); add("BTC 저점일 종가",bl?fmtUSD(bl[4]):"—",w.date);
  add("SOXL 창 안 최저일",st.soxl_low||"—",st.lag==null?"":"시차 "+(st.lag>0?"+":"")+st.lag+"일");
  add("SOXL 사전 낙폭(120일 고점 대비)",pct(st.soxl_dd_pre));
  add("+30일 BTC / SOXL",pct(st.btc_30)+" / "+pct(st.soxl_30));
  add("+90일 BTC / SOXL",pct(st.btc_90)+" / "+pct(st.soxl_90));
  const ch=document.getElementById("charts");ch.innerHTML="";
  if(mode==="price"){
-  ch.append(panel("BTC / USD","종가",b,[],"var(--btc)",t0,st,false,"btc"));
-  ch.append(panel("SOXL","조정 종가",s,[],"var(--soxl)",t0,st,false,"soxl"));
+  ch.append(candlePanel("BTC / USD","일봉 · 거래량",b,t0,st,bl?bl[4]:null));
+  ch.append(candlePanel("SOXL","일봉 · 거래량",s,t0,st,(w.soxl.filter(p=>P(p[0])<=t0).slice(-1)[0]||[0,0,0,0,null])[4]));
  }else{
-  const bb=bl?bl[1]:null; const s0=w.soxl.filter(p=>P(p[0])<=t0).slice(-1)[0];
-  const bi=bb?b.map(p=>[p[0],p[1]/bb*100]):[], si=s0?s.map(p=>[p[0],p[1]/s0[1]*100]):[];
+  const bb=bl?bl[4]:null; const s0=w.soxl.filter(p=>P(p[0])<=t0).slice(-1)[0];
+  const bi=bb?b.map(p=>[p[0],p[4]/bb*100]):[], si=s0?s.map(p=>[p[0],p[4]/s0[4]*100]):[];
   ch.append(panel("지수화 — BTC 저점일 = 100","BTC · SOXL",bi,si,"var(--btc)",t0,st,true,"idx"));
  }
  const tb=document.getElementById("tbl");tb.innerHTML="";
@@ -156,6 +161,38 @@ function panel(title,sub,a,b2,colA,t0,st,indexed,key){
  svg.addEventListener("pointerleave",leave);
  return card;
 }
+function candlePanel(title,sub,a,t0,st,base){
+ const card=el("div",{class:"card"});
+ const tt=el("div",{class:"ttl"});tt.append(el("b",{},title),el("span",{},sub));card.append(tt);
+ const Wd=1120,H=300,L=56,R=16,T=12,B=30,VH=50;const PH=H-T-B-VH-6;
+ const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":title});
+ if(!a.length){card.append(el("div",{class:"note"},"자료 없음"));return card}
+ const x0=t0-rng*dayMs,x1=t0+rng*dayMs;const X=t=>L+(t-x0)/(x1-x0)*(Wd-L-R);const cw=Math.max(1.5,(Wd-L-R)/(2*rng+1)*0.62);
+ let ymin=Math.min(...a.map(p=>p[3])),ymax=Math.max(...a.map(p=>p[2]));const pad=(ymax-ymin)*.06||1;ymin-=pad;ymax+=pad;const Y=v=>T+(ymax-v)/(ymax-ymin)*PH;
+ const vmax=Math.max(...a.map(p=>p[5]))||1;const VB=T+PH+6+VH;const VY=v=>VB-(v/vmax)*VH;
+ const g=svgEl("g",{class:"grid"}),ax=svgEl("g",{class:"axis"});
+ niceTicks(ymin,ymax,5).forEach(v=>{g.append(svgEl("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v)}));const tx=svgEl("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"});tx.textContent=fmtK(v);ax.append(tx)});
+ for(let i=0;i<=2*rng;i+=Math.ceil(2*rng/8)){const t=x0+i*dayMs;const d=new Date(t);const tx=svgEl("text",{x:X(t),y:H-10,"text-anchor":X(t)>Wd-40?"end":i===0?"start":"middle"});tx.textContent=(d.getUTCMonth()+1)+"/"+d.getUTCDate()+(i===0||d.getUTCMonth()===0?" '"+String(d.getUTCFullYear()).slice(2):"");ax.append(tx)}
+ svg.append(g,ax);
+ svg.append(svgEl("line",{class:"mark",x1:X(t0),x2:X(t0),y1:T,y2:H-B}));const ml=svgEl("text",{class:"lab",x:X(t0)+4,y:T+11});ml.textContent="BTC 저점일";svg.append(ml);
+ if(st.soxl_low){const ts=P(st.soxl_low);if(ts>=x0&&ts<=x1){svg.append(svgEl("line",{class:"lowm",x1:X(ts),x2:X(ts),y1:T,y2:H-B}));const l2=svgEl("text",{class:"lab",x:X(ts)+4,y:T+PH-4});l2.textContent="SOXL 최저";svg.append(l2)}}
+ a.forEach(p=>{const x=X(P(p[0]));const up=p[4]>=p[1];const c=up?"c-up":"c-dn";
+  svg.append(svgEl("line",{class:c,x1:x,x2:x,y1:Y(p[2]),y2:Y(p[3]),"stroke-width":1}));
+  const y1=Y(Math.max(p[1],p[4])),y2=Y(Math.min(p[1],p[4]));svg.append(svgEl("rect",{class:c,x:x-cw/2,y:y1,width:cw,height:Math.max(1,y2-y1)}));
+  svg.append(svgEl("rect",{class:up?"v-up":"v-dn",x:x-cw/2,y:VY(p[5]),width:cw,height:VB-VY(p[5])}))});
+ const vl=svgEl("text",{class:"lab",x:L,y:T+PH+6+10});vl.textContent="거래량";svg.append(vl);
+ const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"});svg.append(cross);
+ const tip=el("div",{class:"tip"});card.append(svg,tip);
+ svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;const t=x0+(px-L)/(Wd-L-R)*(x1-x0);let best=a[0];for(const p of a)if(Math.abs(P(p[0])-t)<Math.abs(P(best[0])-t))best=p;if(Math.abs(P(best[0])-t)>4*dayMs){leave();return}
+  const tt=P(best[0]);cross.setAttribute("x1",X(tt));cross.setAttribute("x2",X(tt));cross.style.display="";
+  const i=a.indexOf(best);const prev=i>0?a[i-1][4]:null;const chg=prev?(best[4]/prev-1)*100:null;
+  tip.innerHTML="";tip.append(el("div",{class:"d"},best[0]+"  ("+((tt-t0)/dayMs>0?"+":"")+Math.round((tt-t0)/dayMs)+"일)"));
+  const tb=el("table");[["시가",fmtUSD(best[1])],["고가",fmtUSD(best[2])],["저가",fmtUSD(best[3])],["종가",fmtUSD(best[4])+(chg!=null?"  "+pct(chg):"")],["거래량",best[5].toLocaleString()],["저점일比",base?pct((best[4]/base-1)*100):"—"]].forEach(([k,v])=>{const tr=el("tr");tr.append(el("td",{},k),el("td",{},v));tb.append(tr)});tip.append(tb);
+  tip.style.display="block";const cw2=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+180>cw2)lx=(ev.clientX-r.left)-194;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
+ const leave=()=>{cross.style.display="none";tip.style.display="none"};svg.addEventListener("pointerleave",leave);
+ return card;
+}
+document.querySelectorAll("#colmode button").forEach(b=>b.onclick=()=>{document.body.classList.toggle("kr",b.dataset.c==="kr");document.querySelectorAll("#colmode button").forEach(x=>x.classList.toggle("on",x===b))});
 function niceTicks(a,b,n){const r=b-a,raw=r/n,p=Math.pow(10,Math.floor(Math.log10(raw)));const m=raw/p;const step=(m<1.5?1:m<3?2:m<7?5:10)*p;const t=[];for(let v=Math.ceil(a/step)*step;v<=b;v+=step)t.push(+v.toFixed(6));return t}
 render();
 </script>

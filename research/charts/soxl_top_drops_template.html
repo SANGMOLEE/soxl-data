@@ -29,6 +29,14 @@ svg{display:block;width:100%;height:auto}
 .gl line{stroke:var(--grid);stroke-width:1}
 .axis text{fill:var(--t3);font-size:11px}
 .ser{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;stroke:var(--soxl)}
+:root{--up:#008300;--dn:#e34948}@media (prefers-color-scheme:dark){:root{--up:#0ca30c;--dn:#e66767}}
+body.kr{--up:#e34948;--dn:#2a78d6}@media (prefers-color-scheme:dark){body.kr{--up:#e66767;--dn:#3987e5}}
+.c-up{fill:var(--up);stroke:var(--up)}.c-dn{fill:var(--dn);stroke:var(--dn)}.v-up{fill:var(--up);opacity:.35}.v-dn{fill:var(--dn);opacity:.35}
+.wick{stroke-width:1}.body{stroke-width:1}
+.seg{display:inline-flex}.seg button{border:1px solid var(--line);background:var(--card);color:var(--t1);padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}
+.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0}.seg button.on{border-color:var(--accent);background:var(--wash);font-weight:600}
+.row{display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--t2)}
+.tip table{border:0;background:none;font-size:12px}.tip td{padding:1px 6px 1px 0;border:0;text-align:left}.tip td+td{text-align:right;font-weight:600;color:var(--t1)}
 .mark{stroke:var(--low);stroke-width:1;stroke-dasharray:4 3}
 .cross{stroke:var(--t3);stroke-width:1;pointer-events:none}
 .dot{stroke:var(--card);stroke-width:2;fill:var(--soxl)}
@@ -53,7 +61,8 @@ details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;
 <body>
 <div class="wrap">
 <h1>SOXL 역대 하루 낙폭 상위 10일 — 전후 한 달</h1>
-<p class="sub">조정 종가 기준 전일 대비 하루 수익률이 가장 나빴던 10일(2010-03 상장~2026-10-26). 막대나 표의 행을 누르면 해당 날짜 카드가 강조된다. 각 카드는 그 날(빨간 점선) 앞뒤 30일 종가.</p>
+<p class="sub">종가 기준 전일 대비 하루 수익률이 가장 나빴던 10일(2010-03 상장~2026-10-26). 막대나 표의 행을 누르면 해당 날짜 카드가 강조된다. 각 카드는 그 날(점선) 앞뒤 30일 일봉 + 거래량.</p>
+<div class="row"><span>캔들 색</span><div class="seg" id="colmode"><button data-c="tv" class="on">상승 초록 · 하락 빨강 (트레이딩뷰)</button><button data-c="kr">상승 빨강 · 하락 파랑 (국내)</button></div></div>
 <div class="card" id="rankcard"><div class="ttl"><b>순위</b><span>전일 종가 대비 하루 수익률</span></div><div id="rank"></div></div>
 <div class="card" style="padding:0;overflow:auto"><table id="tbl"></table></div>
 <h2>전후 30일</h2>
@@ -68,7 +77,7 @@ let cur=0;
 const dayMs=86400000,P=d=>new Date(d+"T00:00:00Z").getTime();
 const pct=v=>v==null?"—":(v>0?"+":"")+v.toFixed(1)+"%";
 const cls=v=>v==null?"":v>0?"pos":v<0?"neg":"";
-const usd=v=>"$"+(v>=100?v.toFixed(0):v.toFixed(2));
+const usd=v=>"$"+(v>=100?v.toFixed(1):v.toFixed(2));
 function el(t,a={},...c){const e=document.createElement(t);for(const k in a)e.setAttribute(k,a[k]);c.forEach(x=>e.append(x));return e}
 function svgEl(t,a={}){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);return e}
 function niceTicks(a,b,n){const r=b-a,raw=r/n,p=Math.pow(10,Math.floor(Math.log10(raw)));const m=raw/p;const step=(m<1.5?1:m<3?2:m<7?5:10)*p;const t=[];for(let v=Math.ceil(a/step)*step;v<=b;v+=step)t.push(+v.toFixed(6));return t}
@@ -102,26 +111,35 @@ D.forEach((d,i)=>{
  card.append(chart(d,card));card.onclick=()=>select(i);cards.append(card);
 });
 function chart(d,card){
- const Wd=540,H=200,L=48,R=14,T=12,B=26;const a=d.series,t0=P(d.date);
- const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":d.date+" 전후 30일"});
- const x0=t0-30*dayMs,x1=t0+30*dayMs;const X=t=>L+(t-x0)/(x1-x0)*(Wd-L-R);
- let ymin=Math.min(...a.map(p=>p[1])),ymax=Math.max(...a.map(p=>p[1]));const pad=(ymax-ymin)*.08||1;ymin-=pad;ymax+=pad;const Y=v=>T+(ymax-v)/(ymax-ymin)*(H-T-B);
+ const Wd=540,H=260,L=50,R=14,T=12,B=24,VH=44;const a=d.series;const n=a.length;
+ const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":d.date+" 전후 30일 일봉"});
+ const PH=H-T-B-VH-6; // price pane height
+ const X=i=>L+(i+0.5)/n*(Wd-L-R), cw=Math.max(2,(Wd-L-R)/n*0.62);
+ let ymin=Math.min(...a.map(p=>p[3])),ymax=Math.max(...a.map(p=>p[2]));const pad=(ymax-ymin)*.06||1;ymin-=pad;ymax+=pad;const Y=v=>T+(ymax-v)/(ymax-ymin)*PH;
+ const vmax=Math.max(...a.map(p=>p[5]))||1;const VY=v=>T+PH+6+VH-(v/vmax)*VH;
  const g=svgEl("g",{class:"gl"}),ax=svgEl("g",{class:"axis"});
- niceTicks(ymin,ymax,4).forEach(v=>{g.append(svgEl("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v)}));const t=svgEl("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"});t.textContent=v>=100?v.toFixed(0):v.toFixed(v<10?2:1);ax.append(t)});
- for(let i=0;i<=60;i+=10){const t=x0+i*dayMs,dt=new Date(t);const tx=svgEl("text",{x:X(t),y:H-8,"text-anchor":i===0?"start":i===60?"end":"middle"});tx.textContent=(dt.getUTCMonth()+1)+"/"+dt.getUTCDate();ax.append(tx)}
+ niceTicks(ymin,ymax,4).forEach(v=>{g.append(svgEl("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v)}));const tx=svgEl("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"});tx.textContent=v>=100?v.toFixed(0):v.toFixed(v<10?2:1);ax.append(tx)});
+ const step=Math.max(1,Math.round(n/6));for(let i=0;i<n;i+=step){const dt=new Date(P(a[i][0]));const tx=svgEl("text",{x:X(i),y:H-8,"text-anchor":i===0?"start":"middle"});tx.textContent=(dt.getUTCMonth()+1)+"/"+dt.getUTCDate();ax.append(tx)}
  svg.append(g,ax);
- svg.append(svgEl("line",{class:"mark",x1:X(t0),x2:X(t0),y1:T,y2:H-B}));
- const path=a.map((p,i)=>(i?"L":"M")+X(P(p[0])).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");svg.append(svgEl("path",{class:"ser",d:path}));
- const dp=a.find(p=>p[0]===d.date);if(dp){svg.append(svgEl("circle",{cx:X(t0),cy:Y(dp[1]),r:4,class:"dot",style:"fill:var(--low)"}))}
- const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"}),dot=svgEl("circle",{r:4,class:"dot",style:"display:none"});svg.append(cross,dot);
+ const di=a.findIndex(p=>p[0]===d.date);if(di>=0)svg.append(svgEl("line",{class:"mark",x1:X(di),x2:X(di),y1:T,y2:H-B}));
+ a.forEach((p,i)=>{const up=p[4]>=p[1];const c=up?"c-up":"c-dn";
+  svg.append(svgEl("line",{class:"wick "+c,x1:X(i),x2:X(i),y1:Y(p[2]),y2:Y(p[3])}));
+  const y1=Y(Math.max(p[1],p[4])),y2=Y(Math.min(p[1],p[4]));
+  svg.append(svgEl("rect",{class:"body "+c,x:X(i)-cw/2,y:y1,width:cw,height:Math.max(1,y2-y1)}));
+  svg.append(svgEl("rect",{class:up?"v-up":"v-dn",x:X(i)-cw/2,y:VY(p[5]),width:cw,height:T+PH+6+VH-VY(p[5])}))});
+ const vl=svgEl("text",{class:"lab",x:L,y:T+PH+6+10});vl.textContent="거래량";svg.append(vl);
+ const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"});svg.append(cross);
  const tip=el("div",{class:"tip"});card.append(tip);
- svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;const t=x0+(px-L)/(Wd-L-R)*(x1-x0);let best=a[0];for(const p of a)if(Math.abs(P(p[0])-t)<Math.abs(P(best[0])-t))best=p;
-  const tt=P(best[0]);cross.setAttribute("x1",X(tt));cross.setAttribute("x2",X(tt));cross.style.display="";dot.setAttribute("cx",X(tt));dot.setAttribute("cy",Y(best[1]));dot.style.display="";
-  tip.innerHTML="";tip.append(el("div",{class:"d"},best[0]+" ("+(Math.round((tt-t0)/dayMs)>0?"+":"")+Math.round((tt-t0)/dayMs)+"일)"));const row=el("div");row.append(el("b",{},usd(best[1])),el("i",{},"폭락일比 "+pct((best[1]/d.close-1)*100)));tip.append(row);
-  tip.style.display="block";const cw=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+160>cw)lx=(ev.clientX-r.left)-174;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
- svg.addEventListener("pointerleave",()=>{cross.style.display="none";dot.style.display="none";tip.style.display="none"});
+ svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;let i=Math.round((px-L)/(Wd-L-R)*n-0.5);i=Math.max(0,Math.min(n-1,i));const p=a[i];
+  cross.setAttribute("x1",X(i));cross.setAttribute("x2",X(i));cross.style.display="";
+  const prev=i>0?a[i-1][4]:null;const chg=prev?(p[4]/prev-1)*100:null;
+  tip.innerHTML="";tip.append(el("div",{class:"d"},p[0]+(di>=0?" ("+(i-di>0?"+":"")+(i-di)+"봉)":"")));
+  const tb=el("table");[["시가",usd(p[1])],["고가",usd(p[2])],["저가",usd(p[3])],["종가",usd(p[4])+(chg!=null?"  "+pct(chg):"")],["거래량",p[5].toLocaleString()],["폭락일比",pct((p[4]/d.close-1)*100)]].forEach(([k,v])=>{const tr=el("tr");tr.append(el("td",{},k),el("td",{},v));tb.append(tr)});tip.append(tb);
+  tip.style.display="block";const cw2=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+170>cw2)lx=(ev.clientX-r.left)-184;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
+ svg.addEventListener("pointerleave",()=>{cross.style.display="none";tip.style.display="none"});
  return svg;
 }
+document.querySelectorAll("#colmode button").forEach(b=>b.onclick=()=>{document.body.classList.toggle("kr",b.dataset.c==="kr");document.querySelectorAll("#colmode button").forEach(x=>x.classList.toggle("on",x===b))});
 function select(i){cur=i;document.querySelectorAll(".bar").forEach(b=>b.classList.toggle("on",+b.dataset.i===i));document.querySelectorAll("#tbl tr[data-i]").forEach(r=>r.classList.toggle("on",+r.dataset.i===i));document.querySelectorAll("#cards .card").forEach(c=>c.classList.toggle("on",+c.dataset.i===i));const c=document.querySelector(`#cards .card[data-i="${i}"]`);if(c&&event&&event.target.closest("#rankcard,#tbl"))c.scrollIntoView({behavior:"smooth",block:"center"})}
 select(0);
 </script>
