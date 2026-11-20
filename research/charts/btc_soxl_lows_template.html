@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC 사이클 저점 전후 × SOXL</title>
+<style>
+:root{color-scheme:light;
+ --surface:#fcfcfb;--card:#ffffff;--line:#e4e3df;--grid:#ecebe7;
+ --t1:#0b0b0b;--t2:#52514e;--t3:#8a8984;
+ --btc:#eb6834;--soxl:#2a78d6;--mark:#8a8984;--low:#e34948;--accent:#2a78d6;--wash:rgba(42,120,214,.08)}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;
+ --surface:#1a1a19;--card:#222221;--line:#3a3a38;--grid:#2c2c2b;
+ --t1:#f0efec;--t2:#c3c2b7;--t3:#8c8b85;
+ --btc:#d95926;--soxl:#3987e5;--mark:#8c8b85;--low:#e66767;--accent:#3987e5;--wash:rgba(57,135,229,.14)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--t1);font:14px/1.5 -apple-system,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--t2);margin:0 0 16px;font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.tabs button,.seg button{border:1px solid var(--line);background:var(--card);color:var(--t1);padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px}
+.tabs button.on,.seg button.on{border-color:var(--accent);background:var(--wash);font-weight:600}
+.seg{display:inline-flex;gap:0}.seg button{border-radius:0}.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0}
+.lbl{color:var(--t2);font-size:12px;margin-right:2px}
+.note{color:var(--t2);font-size:12px;margin:-6px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 6px;margin-bottom:12px;position:relative}
+.ttl{display:flex;justify-content:space-between;align-items:baseline;margin:0 4px 2px}
+.ttl b{font-size:14px}.ttl span{color:var(--t2);font-size:12px}
+svg{display:block;width:100%;height:auto}
+.grid line{stroke:var(--grid);stroke-width:1}
+.axis text{fill:var(--t3);font-size:11px}
+.axis line{stroke:var(--line)}
+.ser{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.mark{stroke:var(--mark);stroke-width:1;stroke-dasharray:4 3}
+.lowm{stroke:var(--low);stroke-width:1;stroke-dasharray:2 3}
+.cross{stroke:var(--t3);stroke-width:1;pointer-events:none}
+.dot{stroke:var(--card);stroke-width:2}
+.lab{font-size:11px;fill:var(--t2)}
+.tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);min-width:150px;display:none;z-index:5}
+.tip .d{color:var(--t2);margin-bottom:2px}
+.tip .r{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tip .k{display:inline-block;width:14px;height:0;border-top:2px solid}
+.tip b{font-size:13px}.tip i{font-style:normal;color:var(--t2);margin-left:auto;padding-left:8px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--t2);margin:0 4px 4px}
+.legend span::before{content:"";display:inline-block;width:14px;border-top:2px solid var(--c);vertical-align:middle;margin-right:5px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 12px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.st .k{color:var(--t2);font-size:11px}.st .v{font-size:18px;font-weight:600;margin-top:2px}.st .v small{font-size:11px;font-weight:400;color:var(--t2);margin-left:4px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:7px 10px;text-align:right;border-top:1px solid var(--line)}th{color:var(--t2);font-weight:500;border-top:0}
+th:first-child,td:first-child{text-align:left}
+tr.on td{background:var(--wash)}
+.pos{color:#008300}.neg{color:var(--low)}
+@media (prefers-color-scheme:dark){.pos{color:#0ca30c}}
+details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;color:var(--t1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>BTC 사이클 저점 전후 × SOXL</h1>
+<p class="sub">BTC 확정 저점 4곳과 검증 대상 2026-06-30, 그리고 현재 구간을 같은 날짜축에서 SOXL과 나란히 본다. 세로 점선 = BTC 저점일, 빨간 점선 = 그 창 안 SOXL 최저일. 종가 기준(SOXL은 조정 종가).</p>
+<div class="row"><span class="lbl">구간</span><div class="tabs" id="tabs"></div></div>
+<div class="row">
+ <span class="lbl">앞뒤</span><div class="seg" id="rng"></div>
+ <span class="lbl" style="margin-left:10px">보기</span><div class="seg" id="mode"><button data-m="price" class="on">가격 2단</button><button data-m="index">지수화(BTC 저점일=100)</button></div>
+</div>
+<div class="note" id="note"></div>
+<div class="stats" id="stats"></div>
+<div id="charts"></div>
+<div class="card" style="padding:0;overflow:auto"><table id="tbl"></table></div>
+<details><summary>읽는 법·자료</summary>
+<p>시차 = SOXL 최저일 − BTC 저점일(일). 음수면 SOXL이 먼저 바닥, 양수면 나중. SOXL 사전 낙폭 = BTC 저점 전 120일 고점 대비 창 안 최저. +30/+90 = BTC 저점일 종가 대비 30·90일 뒤 수익률.<br>
+지수화 보기는 두 자산을 BTC 저점일 종가 = 100으로 맞춰 한 축에 겹친 것이다(축을 두 개 두지 않는다). SOXL은 3배 레버리지라 변동 폭이 BTC보다 크다.<br>
+자료: BTCUSD 일봉(2014-09~2026-11-20), SOXL 조정 종가(2010-03~2026-10-26). 현재 창의 SOXL은 2026-10-26 이후가 비어 있다. 2015-01 창의 SOXL 최저는 창 시작 쪽(2014-11-17)에 걸려 있어 그 창의 시차는 의미가 약하다.</p></details>
+</div>
+<script>
+const W = __DATA__;
+const RANGES=[30,60,90,180]; let cur=0, rng=60, mode="price";
+const fmtK=v=>v>=1000?(v/1000).toFixed(v>=10000?0:1)+"k":v.toFixed(v<10?2:1);
+const fmtUSD=v=>v>=1000?"$"+Math.round(v).toLocaleString():"$"+v.toFixed(2);
+const pct=v=>v==null?"—":(v>0?"+":"")+v.toFixed(1)+"%";
+const cls=v=>v==null?"":v>0?"pos":v<0?"neg":"";
+const dayMs=86400000, P=d=>new Date(d+"T00:00:00Z").getTime();
+function el(t,a={},...c){const e=document.createElement(t);for(const k in a)e.setAttribute(k,a[k]);c.forEach(x=>e.append(x));return e}
+function svgEl(t,a={}){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);return e}
+// controls
+const tabs=document.getElementById("tabs");W.forEach((w,i)=>{const b=el("button",{},w.name);b.onclick=()=>{cur=i;render()};tabs.append(b)});
+const rg=document.getElementById("rng");RANGES.forEach(r=>{const b=el("button",{},"±"+r+"일");b.onclick=()=>{rng=r;render()};rg.append(b)});
+document.querySelectorAll("#mode button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;render()});
+function slice(arr,t0){return arr.filter(p=>Math.abs(P(p[0])-t0)<=rng*dayMs)}
+function render(){
+ const w=W[cur], t0=P(w.date);
+ document.querySelectorAll("#tabs button").forEach((b,i)=>b.classList.toggle("on",i===cur));
+ document.querySelectorAll("#rng button").forEach((b,i)=>b.classList.toggle("on",RANGES[i]===rng));
+ document.querySelectorAll("#mode button").forEach(b=>b.classList.toggle("on",b.dataset.m===mode));
+ document.getElementById("note").textContent=w.note;
+ const b=slice(w.btc,t0), s=slice(w.soxl,t0), st=w.stats;
+ const sm=document.getElementById("stats");sm.innerHTML="";
+ const add=(k,v,small)=>{const d=el("div",{class:"st"});d.append(el("div",{class:"k"},k));const vv=el("div",{class:"v"},v);if(small)vv.append(el("small",{},small));d.append(vv);sm.append(d)};
+ const bl=w.btc.find(p=>p[0]===w.date); add("BTC 저점일 종가",bl?fmtUSD(bl[1]):"—",w.date);
+ add("SOXL 창 안 최저일",st.soxl_low||"—",st.lag==null?"":"시차 "+(st.lag>0?"+":"")+st.lag+"일");
+ add("SOXL 사전 낙폭(120일 고점 대비)",pct(st.soxl_dd_pre));
+ add("+30일 BTC / SOXL",pct(st.btc_30)+" / "+pct(st.soxl_30));
+ add("+90일 BTC / SOXL",pct(st.btc_90)+" / "+pct(st.soxl_90));
+ const ch=document.getElementById("charts");ch.innerHTML="";
+ if(mode==="price"){
+  ch.append(panel("BTC / USD","종가",b,[],"var(--btc)",t0,st,false,"btc"));
+  ch.append(panel("SOXL","조정 종가",s,[],"var(--soxl)",t0,st,false,"soxl"));
+ }else{
+  const bb=bl?bl[1]:null; const s0=w.soxl.filter(p=>P(p[0])<=t0).slice(-1)[0];
+  const bi=bb?b.map(p=>[p[0],p[1]/bb*100]):[], si=s0?s.map(p=>[p[0],p[1]/s0[1]*100]):[];
+  ch.append(panel("지수화 — BTC 저점일 = 100","BTC · SOXL",bi,si,"var(--btc)",t0,st,true,"idx"));
+ }
+ const tb=document.getElementById("tbl");tb.innerHTML="";
+ const hd=el("tr");["구간","BTC 저점일","SOXL 최저일","시차","SOXL 사전 낙폭","BTC +30","SOXL +30","BTC +90","SOXL +90"].forEach(h=>hd.append(el("th",{},h)));tb.append(hd);
+ W.forEach((x,i)=>{const r=el("tr",{class:i===cur?"on":""});const q=x.stats;
+  [[x.name],[x.date],[q.soxl_low||"—"],[q.lag==null?"—":(q.lag>0?"+":"")+q.lag+"일"],[pct(q.soxl_dd_pre),cls(q.soxl_dd_pre)],[pct(q.btc_30),cls(q.btc_30)],[pct(q.soxl_30),cls(q.soxl_30)],[pct(q.btc_90),cls(q.btc_90)],[pct(q.soxl_90),cls(q.soxl_90)]]
+  .forEach(([v,c])=>r.append(el("td",{class:c||""},v)));r.onclick=()=>{cur=i;render()};r.style.cursor="pointer";tb.append(r)});
+}
+function panel(title,sub,a,b2,colA,t0,st,indexed,key){
+ const card=el("div",{class:"card"});
+ const tt=el("div",{class:"ttl"});tt.append(el("b",{},title),el("span",{},sub));card.append(tt);
+ if(indexed){const lg=el("div",{class:"legend"});lg.append(el("span",{style:"--c:var(--btc)"},"BTC"),el("span",{style:"--c:var(--soxl)"},"SOXL"));card.append(lg)}
+ const Wd=1120,H=indexed?300:230,L=52,R=16,T=12,B=30;
+ const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":title});
+ const all=a.concat(b2); if(!all.length){card.append(el("div",{class:"note"},"자료 없음"));return card}
+ const x0=t0-rng*dayMs,x1=t0+rng*dayMs; const X=t=>L+(t-x0)/(x1-x0)*(Wd-L-R);
+ let ymin=Math.min(...all.map(p=>p[1])),ymax=Math.max(...all.map(p=>p[1]));const pad=(ymax-ymin)*0.08||1;ymin-=pad;ymax+=pad;
+ const Y=v=>T+(ymax-v)/(ymax-ymin)*(H-T-B);
+ const g=svgEl("g",{class:"grid"});const ax=svgEl("g",{class:"axis"});
+ const ticks=niceTicks(ymin,ymax,5);ticks.forEach(v=>{g.append(svgEl("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v)}));const tx=svgEl("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"});tx.textContent=indexed?v.toFixed(0):fmtK(v);ax.append(tx)});
+ const n=Math.max(2,Math.round(rng/15));for(let i=0;i<=2*rng;i+=Math.ceil(2*rng/8)){const t=x0+i*dayMs;const d=new Date(t);const tx=svgEl("text",{x:X(t),y:H-10,"text-anchor":X(t)>Wd-40?"end":i===0?"start":"middle"});tx.textContent=(d.getUTCMonth()+1)+"/"+d.getUTCDate()+(i===0||d.getUTCMonth()===0?" '"+String(d.getUTCFullYear()).slice(2):"");ax.append(tx)}
+ svg.append(g,ax);
+ svg.append(svgEl("line",{class:"mark",x1:X(t0),x2:X(t0),y1:T,y2:H-B}));
+ const ml=svgEl("text",{class:"lab",x:X(t0)+4,y:T+11});ml.textContent="BTC 저점일";svg.append(ml);
+ if(st.soxl_low){const ts=P(st.soxl_low);if(ts>=x0&&ts<=x1){svg.append(svgEl("line",{class:"lowm",x1:X(ts),x2:X(ts),y1:T,y2:H-B}));const l2=svgEl("text",{class:"lab",x:X(ts)+4,y:H-B-4});l2.textContent="SOXL 최저";svg.append(l2)}}
+ const path=(arr,col)=>{if(!arr.length)return;const d=arr.map((p,i)=>(i?"L":"M")+X(P(p[0])).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");svg.append(svgEl("path",{class:"ser",d,stroke:col}))};
+ path(a,colA); if(indexed)path(b2,"var(--soxl)");
+ if(indexed){const h=svgEl("line",{x1:L,x2:Wd-R,y1:Y(100),y2:Y(100),stroke:"var(--t3)","stroke-width":1,"stroke-dasharray":"1 3"});svg.append(h)}
+ // hover
+ const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"});svg.append(cross);
+ const dots=[svgEl("circle",{r:4,class:"dot",fill:colA,style:"display:none"}),svgEl("circle",{r:4,class:"dot",fill:"var(--soxl)",style:"display:none"})];dots.forEach(d=>svg.append(d));
+ const tip=el("div",{class:"tip"});card.append(svg,tip);
+ const near=(arr,t)=>{if(!arr.length)return null;let best=arr[0];for(const p of arr){if(Math.abs(P(p[0])-t)<Math.abs(P(best[0])-t))best=p}return Math.abs(P(best[0])-t)<=4*dayMs?best:null};
+ const base=(arr)=>{const z=arr.filter(p=>P(p[0])<=t0);return z.length?z[z.length-1][1]:null};
+ const baseA=base(a),baseB=base(b2);
+ svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;const t=x0+(px-L)/(Wd-L-R)*(x1-x0);const pa=near(a,t),pb=near(b2,t);const ref=pa||pb;if(!ref){leave();return}
+  const tt=P(ref[0]);cross.setAttribute("x1",X(tt));cross.setAttribute("x2",X(tt));cross.style.display="";
+  tip.innerHTML="";const dd=el("div",{class:"d"},ref[0]+"  ("+((tt-t0)/dayMs>0?"+":"")+Math.round((tt-t0)/dayMs)+"일)");tip.append(dd);
+  const row=(p,col,name,bs)=>{const rr=el("div",{class:"r"});const k=el("span",{class:"k",style:"border-color:"+col});const v=el("b",{},indexed?p[1].toFixed(1):fmtUSD(p[1]));const i=el("i",{},name+(bs?" · 저점일比 "+pct((p[1]/bs-1)*100):""));rr.append(k,v,i);tip.append(rr)};
+  if(pa){row(pa,colA,indexed?"BTC":key==="btc"?"BTC":"SOXL",indexed?null:baseA);dots[0].setAttribute("cx",X(P(pa[0])));dots[0].setAttribute("cy",Y(pa[1]));dots[0].style.display=""}else dots[0].style.display="none";
+  if(indexed&&pb){row(pb,"var(--soxl)","SOXL",null);dots[1].setAttribute("cx",X(P(pb[0])));dots[1].setAttribute("cy",Y(pb[1]));dots[1].style.display=""}else dots[1].style.display="none";
+  tip.style.display="block";const cw=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+170>cw)lx=(ev.clientX-r.left)-184;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
+ const leave=()=>{cross.style.display="none";dots.forEach(d=>d.style.display="none");tip.style.display="none"};
+ svg.addEventListener("pointerleave",leave);
+ return card;
+}
+function niceTicks(a,b,n){const r=b-a,raw=r/n,p=Math.pow(10,Math.floor(Math.log10(raw)));const m=raw/p;const step=(m<1.5?1:m<3?2:m<7?5:10)*p;const t=[];for(let v=Math.ceil(a/step)*step;v<=b;v+=step)t.push(+v.toFixed(6));return t}
+render();
+</script>
+</body>
+</html>
