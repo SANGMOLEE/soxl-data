@@ -17,6 +17,7 @@
 ### 계획·전략·기록
 | 파일 | 내용 | 상태 |
 |---|---|---|
+| `score100_research_2026-11-20.md` (+`score100.py`, `score100_features.py`, `score100_study.py`) | **100점 연속 점수 v3**와 정밀 트리거 연구. 지표 25개 진단, 결합·창·임계 민감도, 교차 검증. 결론: 점수로는 첫 저점/최종 저점 구분 불가, 당일 포착은 "후보일+익일 확인"으로 4/4(가짜 11/16) | 최신 |
 | `BTC_BOTTOM_MASTER_2026-11-20.md` | **종합 연구.** 어디(57~58k 중앙, A/B/C)·언제(12/3~12/16 45%)·얼마(ATH −50~−63%)·신호 체계(알람→투매→반전→상승 확인)·3분할 집행·무효 규칙·과거 저점 서명표·판단 이력 | **읽기 시작점** |
 | `BOTTOM_DETECTION_PLAN_2026-11-20.md` | 최종 저점 탐지 계획. 지표 세 층(빠른·가치·시간), 사전 등록 시나리오(A 45% / B 30% / C 25%), 시기 창(12/3~12/16 45%), 3분할 매수, 알람 체계 | **기준 문서** |
 | `FINAL_STRATEGY_SOLT_BITU.md` | SOLT·BITU 2배 ETF 사이클 전략서 v2 (상승기만 보유, 하락기 현금) | 기준. 검증 보고서는 B절 |
@@ -36,6 +37,7 @@
 | `bottom_detector.py` | 빠른 층 저점 탐지 점수 0~8 (A~H), 1·2·3단계, 게이트·저점 구간, `alarm_state.json` 생성 |
 | `bcps/bcps_rebuild.py`, `bcps/bcps_series.csv`, `bcps/bcps_v11_embedded.csv` | 가치 층 BCPS(0~100) 재계산. v1.1 공식은 Investing 프로젝트에서 왔고 여기서 오늘까지 재산출 |
 | `bcps/BTC_BOTTOM_DETECTOR_v2.pine` | **트레이딩뷰 v2**: 빠른 층 8조건을 차트에서 계산(점수·단계·게이트·저점 구간·반전) + BCPS v1.2 내장 + 조건표 + 경보 7종. v1.2를 대체 |
+| `bcps/BTC_SCORE100_v3.pine` | 트레이딩뷰 v3: 100점 점수(Z·T 백분위, MVRV 내장)·게이트·후보일·정밀 트리거·정점 통과·경보 6종 |
 | `bcps/BTC_BOTTOM_LEVELS_v1.pine` | 트레이딩뷰 가격선: 사전 등록 가격선 10개 + 200일·200주선 + 실현가 배수선 + 종가 이탈/돌파 경보 |
 | `bcps/BCPS_v1.1_TradingView.pine`, `bcps/BCPS_v1.2_TradingView.txt`, `bcps/make_pine.py` | 트레이딩뷰 BCPS 단독 지표(v1.2는 점수 내장판, 그대로 써도 됨) |
 | `cycle_engine_v2.py` | 2배 ETF 모의 장부 엔진(기준). `full_cycle_backtest.py`는 폐기된 v1 |

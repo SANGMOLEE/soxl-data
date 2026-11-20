@@ -1,0 +1,27 @@
+{
+ "date": "2026-11-20",
+ "close": 62091,
+ "score": 92.2,
+ "band": "극저점",
+ "zone": 88,
+ "timing": 96,
+ "gate": true,
+ "newlow20": true,
+ "candidate": true,
+ "trigger_today": false,
+ "last_trigger": "2026-11-15",
+ "last_trigger_price": 65305,
+ "components": {
+  "mayer": 85,
+  "w200": 95,
+  "ddath": 76,
+  "mvrv": 93,
+  "rsi_w": 93,
+  "rsi14": 99,
+  "dd30": 98,
+  "dd90": 95,
+  "bbz": 90,
+  "ma50d": 100,
+  "r7": 95
+ }
+}
