@@ -13,7 +13,7 @@ def fetch(metrics):
         if not url: break
     return rows
 rows = None; err = []
-for metrics in ("CapMVRVCur,CapMrktCurUSD,PriceUSD,HashRate,RevUSD,CapRealUSD", "CapMVRVCur,CapMrktCurUSD,PriceUSD", "CapMVRVCur,PriceUSD"):
+for metrics in ("CapMVRVCur,CapMrktCurUSD,PriceUSD", "CapMVRVCur,PriceUSD"):
     try:
         rows = fetch(metrics)
         if rows: break
@@ -22,8 +22,16 @@ if not rows: print("[FAIL] onchain:", err); sys.exit(1)
 df = pd.DataFrame(rows); df["date"] = pd.to_datetime(df["time"]).dt.tz_localize(None).dt.normalize()
 out = pd.DataFrame({"date": df["date"], "mvrv": pd.to_numeric(df["CapMVRVCur"], errors="coerce"), "price": pd.to_numeric(df["PriceUSD"], errors="coerce")})
 out["mcap"] = pd.to_numeric(df["CapMrktCurUSD"], errors="coerce") if "CapMrktCurUSD" in df else float("nan")
+# 보조 지표는 하나씩 따로 받는다(하나가 거부돼도 나머지는 받기 위해). 실패하면 NaN.
 for k, col in (("HashRate", "hashrate"), ("RevUSD", "rev_usd"), ("CapRealUSD", "realized_cap")):
-    out[col] = pd.to_numeric(df[k], errors="coerce") if k in df else float("nan")
+    out[col] = float("nan")
+    try:
+        r2 = pd.DataFrame(fetch(k))
+        if len(r2):
+            r2["date"] = pd.to_datetime(r2["time"]).dt.tz_localize(None).dt.normalize()
+            out[col] = out["date"].map(pd.Series(pd.to_numeric(r2[k], errors="coerce").values, index=r2["date"]).to_dict())
+            print("[OK]", k, int(out[col].notna().sum()))
+    except Exception as e: print("[WARN]", k, e)
 # 해시프라이스(USD / TH/s / 일) = 채굴 수익 ÷ 해시레이트. 자료 없으면 NaN
 out["hashprice"] = out["rev_usd"] / out["hashrate"]
 out = out.dropna(subset=["mvrv", "price"]).sort_values("date").drop_duplicates("date"); out["realized_price"] = out["price"] / out["mvrv"]; out["source"] = "coinmetrics"
