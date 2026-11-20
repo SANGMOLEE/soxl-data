@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""저점 거리 점수 v4 — 네 사이클 저점에서 0이 되도록 앵커를 고정한 모형 (2026-11-20)
-각 지표 x(낮을수록 저점형으로 정렬): 앵커 a = 네 저점(2018·2020·2022·2026-06) 당일 값 중 가장 덜 극단적인 값.
+"""bv1 — 저점 거리 점수: 확정된 네 사이클 저점에서 0이 되도록 앵커를 고정한 모형 (2026-11-20, 재작성)
+각 지표 x(낮을수록 저점형으로 정렬): 앵커 a = 확정 저점 넷(2015-01·2018-12·2020-03·2022-11) 당일 값 중 가장 덜 극단적인 값.
+2026-06-30은 확정 저점이 아니므로 앵커에 넣지 않고 검증 대상으로만 본다. (첫 판은 2026-06-30을 넷에 넣는 오류가 있었고 폐기함.)
   거리_i = clip((x − a) / (중립_i − a), 0, 1) × 100,  중립_i = 2015~2026 전 기간 중앙값.
   점수 = 구간(5지표 평균) 50% + 타이밍(6지표 평균) 50%.  네 저점에서는 정의상 모든 지표가 앵커 이하 → 0.
 평가: 가짜 저점 점수, 0 또는 ≤5가 찍힌 날(저점 ±7일 밖), 저점 하나 뺀 교차 검증, 현재값과 '0이 되는 가격'.
@@ -9,7 +10,8 @@ import sys, os, numpy as np, pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from score100_features import load, ORIENT, local_lows
 F = load(); c = F.close
-LOWS4 = [pd.Timestamp(x) for x in ("2018-12-15", "2020-03-12", "2022-11-21", "2026-06-30")]
+LOWS4 = [pd.Timestamp(x) for x in ("2015-01-14", "2018-12-15", "2020-03-12", "2022-11-21")]  # 확정 저점만
+TEST = pd.Timestamp("2026-06-30")  # 미확정 — 검증 대상
 ZC = ["mayer", "w200", "ddath", "mvrv", "rsi_w"]; TC = ["rsi14", "dd30", "dd90", "bbz", "ma50d", "r7"]
 COLS = ZC + TC
 LABEL = dict(mayer="200일선 이격", w200="200주선 이격", ddath="ATH 낙폭", mvrv="MVRV", rsi_w="주간 RSI", rsi14="일간 RSI14", dd30="30일 낙폭", dd90="90일 낙폭", bbz="볼린저 z", ma50d="50일선 이격", r7="7일 수익")
@@ -35,8 +37,8 @@ for k in COLS:
     f = (lambda v: f"{v:+.0%}") if k in ("mayer", "w200", "ddath", "dd30", "dd90", "ma50d", "r7") else (lambda v: f"{v:.2f}") if k in ("mvrv", "bbz") else (lambda v: f"{v:.0f}")
     print(f"  {LABEL[k]:9s} 앵커 {f(a):>7s} | 중립 {f(n):>7s} | 저점값 " + ", ".join(f"{d} {f(v)}" for d, v in vals.items()))
 
-print("\n== 2. 네 저점(정의상 0)과 2015-01·2015-08·가짜 저점의 점수 ==")
-for x in ("2018-12-15", "2020-03-12", "2022-11-21", "2026-06-30", "2015-01-14", "2015-08-24", "2018-02-05", "2018-06-28", "2019-12-17", "2022-06-18", "2026-02-05"):
+print("\n== 2. 확정 저점 넷(정의상 0), 2026-06-30(검증 대상), 가짜 저점의 점수 ==")
+for x in ("2015-01-14", "2018-12-15", "2020-03-12", "2022-11-21", "2026-06-30", "2015-08-24", "2018-02-05", "2018-06-28", "2019-12-17", "2022-06-18", "2026-02-05"):
     t = pd.Timestamp(x); over = [LABEL[k] + f" {D.at[t,k]:.0f}" for k in COLS if D.at[t, k] > 0]
     print(f"  {x}: 점수 {S[t]:5.1f} (Z {Z[t]:4.1f} T {T[t]:4.1f}) | 0이 아닌 지표: {', '.join(over) if over else '없음'}")
 
@@ -57,10 +59,14 @@ for t in LOWS4:
     over = [LABEL[k] + f" {D2.at[t,k]:.0f}" for k in COLS if D2.at[t, k] > 0]
     print(f"  제외 {t.date()}: 그 저점 점수 {S2[t]:.1f} (Z {Z2[t]:.1f} T {T2[t]:.1f}) | 0이 아닌 지표: {', '.join(over) if over else '없음'} | 그 저점 ±30일 최저 점수일 {S2.loc[t-pd.Timedelta(days=30):t+pd.Timedelta(days=30)].idxmin().date()}")
 
-print("\n== 5. 사이클 저점 전후 경로 (−10 … 저점 … +10) ==")
-for t in LOWS4:
+print("\n== 5. 사이클 저점 전후 경로 (−10 … 저점 … +10) — 2026-06-30 포함 ==")
+for t in LOWS4 + [TEST]:
     seg = S.loc[t - pd.Timedelta(days=10): t + pd.Timedelta(days=10)]
     print(" ", t.date(), " ".join(f"{int(round(v)):3d}" for v in seg.values))
+
+print("\n== 5-1. 2026-06-30 검증: 2026-05-15~08-15 구간 최저 점수일 ==")
+w = S.loc["2026-05-15":"2026-08-15"]; print(f"  최저 {w.min():.1f} ({w.idxmin().date()}), 6/30 당일 {S[TEST]:.1f}, 6/30 뒤 10일 최저 {S.loc[TEST:TEST+pd.Timedelta(days=10)].min():.1f}")
+print("  6/30 당일 0이 아닌 지표:", {LABEL[k]: round(D.at[TEST, k]) for k in COLS if D.at[TEST, k] > 0})
 
 print("\n== 6. 현재 ==")
 x = F.index[-1]; print(f"  {x.date()} BTC {c[x]:,.0f} | 점수 {S[x]:.1f} = 구간 {Z[x]:.1f} · 타이밍 {T[x]:.1f}")

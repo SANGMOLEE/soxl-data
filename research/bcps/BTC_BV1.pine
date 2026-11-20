@@ -1,17 +1,18 @@
 //@version=6
 // ═══════════════════════════════════════════════════════════════════
-//  BTC 저점 거리 점수 v4 — 네 사이클 저점에서 0  (2026-11-20)
+//  BTC bv1 — 저점 거리 점수: 확정된 네 사이클 저점에서 0  (2026-11-20, 재작성)
 //  연구: research/score0_research_2026-11-20.md · 운용 코드 research/score0.py 와 같은 규칙·같은 앵커
+//  2026-06-30은 확정 저점이 아니므로 앵커에 넣지 않았다(검증 대상). 첫 판(6/30 포함)은 폐기.
 //
-//  지표 11개마다 앵커(2018-12-15·2020-03-12·2022-11-21·2026-06-30 저점 당일 값 중 가장 덜 극단) 와 중립(2015~ 중앙값)을 고정.
+//  지표 11개마다 앵커(확정 저점 2015-01-14·2018-12-15·2020-03-12·2022-11-21 당일 값 중 가장 덜 극단) 와 중립(2015~ 중앙값)을 고정.
 //  거리 = clip((앵커 − 값)/(앵커 − 중립), 0, 1)×100.  점수 = 0.5×구간(200일선·200주선·ATH낙폭·MVRV·주간RSI) + 0.5×타이밍(RSI14·30일·90일·볼린저z·50일선·7일)
 //  0 = 과거 네 저점과 같거나 더 극단.  띠: ≤5 저점 / ≤15 저점 근접 / ≤35 저점권 / ≤65 중간 / >65 저점 아님
-//  "엄격" 눈금(앵커 = 네 저점 중앙값)도 같이 그린다 — 2018~2022형 깊이 기준.
+//  "엄격" 눈금(앵커 = 네 확정 저점 중앙값)도 같이 그린다 — 더 깊은 저점 기준.
 //  후보일 = 점수 ≤ 5 & 종가 20일 신저가 & 게이트(고점 후 240일·ATH −45%).  트리거 = 전날 후보일 & 오늘 종가 상승.  반등 확인 = 점수가 10일 최저보다 15 이상 상승 & 3일 전보다 종가 상승.
 //  MVRV는 내장(2016-05-15~2026-11-20). 그 밖은 차트 계산. 일봉 BTCUSD, 긴 이력 차트 권장(200주선은 1,400봉 필요).
 //  경보 5종: 후보일 / 트리거 / 점수 5 하향 / 점수 15 하향 / 반등 확인
 // ═══════════════════════════════════════════════════════════════════
-indicator("BTC 저점 거리 점수 v4 (0=과거 저점)", shorttitle="BTC저점거리", overlay=false, precision=1, max_labels_count=100)
+indicator("BTC bv1 저점 거리 점수 (0=확정 저점)", shorttitle="BTC bv1", overlay=false, precision=1, max_labels_count=100)
 
 showTbl = input.bool(true, "구성표 표시", group="표시")
 showLbl = input.bool(true, "현재 말풍선", group="표시")
@@ -46,34 +47,34 @@ if idx >= 0 and idx < nDays
     rm = str.tonumber(str.substring(MVRV_STR, idx * 3, idx * 3 + 3))
     mvrv := rm >= 999 ? na : rm / 100.0
 
-// ── 거리 (앵커·중립 고정값: score0.py 와 동일. 낮을수록 저점형인 지표는 그대로, 값이 클수록 저점형이면 부호 처리) ──
+// ── 거리 (앵커·중립 고정값: score0.py 와 동일) ──
 // dist(값, 앵커, 중립): 값이 앵커보다 "덜 극단"(중립 쪽)일수록 커짐. 모든 지표가 '낮을수록 저점형'이므로 값 ≤ 앵커 → 0.
 dist(float v, float a, float n) =>
     na(v) ? na : math.min(math.max((v - a) / (n - a), 0.0), 1.0) * 100
 // 느슨 앵커(덜 극단)
-dMayer = dist(mayer, -0.2229, 0.1121)
+dMayer = dist(mayer, -0.2932, 0.1121)
 dW200  = dist(w200,   0.0156, 0.6647)
-dDdath = dist(ddath, -0.5306, -0.3850)
-dMvrv  = dist(mvrv,   1.1028, 1.6376)
+dDdath = dist(ddath, -0.6106, -0.3850)
+dMvrv  = dist(mvrv,   0.8775, 1.6376)
 dRsiW  = dist(rsiW,  33.53,  55.71)
 dRsi   = dist(rsi14, 31.40,  51.96)
-dDd30  = dist(dd30,  -0.1789, -0.0626)
-dDd90  = dist(dd90,  -0.2871, -0.1297)
+dDd30  = dist(dd30,  -0.2582, -0.0626)
+dDd90  = dist(dd90,  -0.2943, -0.1297)
 dBbz   = dist(bbz,   -1.0974, 0.2221)
-dMa50  = dist(ma50d, -0.1451, 0.0186)
+dMa50  = dist(ma50d, -0.1692, 0.0186)
 dR7    = dist(r7,    -0.0500, 0.0062)
-// 엄격 앵커(네 저점 중앙값)
-sMayer = dist(mayer, -0.3600, 0.1121)
-sW200  = dist(w200,  -0.0800, 0.6647)
-sDdath = dist(ddath, -0.7600, -0.3850)
-sMvrv  = dist(mvrv,   0.8300, 1.6376)
-sRsiW  = dist(rsiW,  32.50,  55.71)
-sRsi   = dist(rsi14, 28.50,  51.96)
-sDd30  = dist(dd30,  -0.3400, -0.0626)
-sDd90  = dist(dd90,  -0.4050, -0.1297)
-sBbz   = dist(bbz,   -1.5800, 0.2221)
-sMa50  = dist(ma50d, -0.2600, 0.0186)
-sR7    = dist(r7,    -0.0700, 0.0062)
+// 엄격 앵커(네 확정 저점 중앙값)
+sMayer = dist(mayer, -0.4252, 0.1121)
+sW200  = dist(w200,  -0.0981, 0.6647)
+sDdath = dist(ddath, -0.7557, -0.3850)
+sMvrv  = dist(mvrv,   0.7340, 1.6376)
+sRsiW  = dist(rsiW,  31.30,  55.71)
+sRsi   = dist(rsi14, 23.39,  51.96)
+sDd30  = dist(dd30,  -0.4460, -0.0626)
+sDd90  = dist(dd90,  -0.5190, -0.1297)
+sBbz   = dist(bbz,   -2.2011, 0.2221)
+sMa50  = dist(ma50d, -0.4003, 0.0186)
+sR7    = dist(r7,    -0.2319, 0.0062)
 
 avg5(float a, float b, float c, float d, float e) =>
     s = 0.0
@@ -186,8 +187,8 @@ plot(cand ? 1 : 0, "후보일", display = display.data_window)
 plot(trigger ? 1 : 0, "트리거", display = display.data_window)
 plot(mvrv, "MVRV(내장)", display = display.data_window)
 
-alertcondition(cand and not cand[1],        "후보일(점수≤5·20일 신저가)", "BTC 저점거리 후보일 — 내일 종가 상승이면 트리거")
-alertcondition(trigger,                      "트리거(익일 확인)",          "BTC 저점거리 트리거 확인 — 오늘 종가 매수 후보")
-alertcondition(ta.crossunder(score, 5),      "점수 5 하향(저점)",          "BTC 저점거리 5 하향 — 과거 네 저점 수준")
-alertcondition(ta.crossunder(score, 15),     "점수 15 하향(저점 근접)",    "BTC 저점거리 15 하향")
-alertcondition(rebound and not rebound[1],   "반등 확인(+15)",             "BTC 저점거리 반등 확인 — 저점이 지났다는 사후 신호")
+alertcondition(cand and not cand[1],        "후보일(점수≤5·20일 신저가)", "BTC bv1 후보일 — 내일 종가 상승이면 트리거")
+alertcondition(trigger,                      "트리거(익일 확인)",          "BTC bv1 트리거 확인 — 오늘 종가 매수 후보")
+alertcondition(ta.crossunder(score, 5),      "점수 5 하향(저점)",          "BTC bv1 5 하향 — 확정 저점 네 곳 수준")
+alertcondition(ta.crossunder(score, 15),     "점수 15 하향(저점 근접)",    "BTC bv1 15 하향")
+alertcondition(rebound and not rebound[1],   "반등 확인(+15)",             "BTC bv1 반등 확인 — 저점이 지났다는 사후 신호")
