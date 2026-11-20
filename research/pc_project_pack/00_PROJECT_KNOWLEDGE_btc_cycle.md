@@ -36,5 +36,11 @@
 ## 영상 대조 (자산제곱, 2027년 불장)
 맞는 것: 낙폭 -54%, 실현가격 54k, 중간선거 패턴, 배수 축소. 틀린 것: "연말 200일선~ETF평균가 81,300 박스"는 열흘 안에 깨짐. 반영: ETF 평균가 81,300을 1차 확인선으로, FOMC 동결을 전환 신호로 추가. 미확인: ETF 연간 순유출 1% 미만, 강제 매도자 부재.
 
+## 통합 지식 안내 (2026-11-20 추가)
+세 출처(Claude Code 세션, claude.ai 「Investing 딸깍」 프로젝트, PC Downloads 보관본)의 비트코인 저점 탐지 지식을 저장소 `research/knowledge/`에 모았다. 색인은 `research/knowledge/README.md`이며, 거기에 문서별 상태(기준·유효·이력용·폐기)와 지식 간 모순·미해결 항목(D절)을 적어 두었다.
+- Investing 프로젝트에서 온 것: `knowledge/investing_project/btc/`(저점판정 재점검 10/26, SOLT·BITU 검증 4건), `cycle/`(사이클 자산 5건), 프로젝트 메모리·세션 목록.
+- 8월 보관본: `knowledge/archive_2026-08/`(BBS v1.0a/v1.1 의사결정, 실측 재검증). BCPS의 전신.
+- 판정 변천: 8/3 "추가 하락" → 10/26 "최저점 통과 60~65%" → 11/20 "6/30이 바닥일 확률 25%". 기준은 가장 최신인 11/20 계획.
+
 ## 저장소 안내
 `research/BOTTOM_DETECTION_PLAN_2026-11-20.md`(최종 계획), `forward_log.md`(전방 기록), `FINAL_STRATEGY_SOLT_BITU.md`(전략서), `cycle_recheck_2026-11-20.md`, `video_compare_2026-11-20.md`, `bcps/`(BCPS 재계산·Pine), `bottom_detector.py`, `cycle_engine_v2.py`. 자료 `data/crypto/`.
