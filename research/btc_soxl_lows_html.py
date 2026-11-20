@@ -5,6 +5,7 @@
 """
 import os, json, pandas as pd, numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VX = pd.read_csv(f"{ROOT}/data/macro/VIXCLS.csv", parse_dates=["date"]).set_index("date").iloc[:, 0].dropna()
 BT = pd.read_csv(f"{ROOT}/data/crypto/BTCUSD.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
 SX = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
 btc = BT["close"]; sox = SX["adj_close"]
@@ -34,7 +35,10 @@ for d, name, note in WINDOWS:
         for nm, ser in (("btc", btc), ("soxl", sox)):
             a = ser.loc[:t]; b2 = ser.loc[:t + pd.Timedelta(days=h)]
             if len(a) and len(b2) and b2.index[-1] > t: stats[f"{nm}_{h}"] = round(float(b2.iloc[-1] / a.iloc[-1] - 1) * 100, 1)
-    out.append(dict(date=d, name=name, note=note, btc=seg(BT, t), soxl=seg(SX, t), stats=stats))
+    vv = VX.loc[:t]; stats["vix"] = round(float(vv.iloc[-1]), 2) if len(vv) else None; stats["vix_date"] = vv.index[-1].strftime("%Y-%m-%d") if len(vv) else None
+    vw = VX.loc[t - pd.Timedelta(days=PAD): t + pd.Timedelta(days=PAD)]; vmx = vw.loc[t - pd.Timedelta(days=60): t + pd.Timedelta(days=60)]
+    stats["vix_max"] = round(float(vmx.max()), 2) if len(vmx) else None; stats["vix_max_date"] = vmx.idxmax().strftime("%Y-%m-%d") if len(vmx) else None
+    out.append(dict(date=d, name=name, note=note, btc=seg(BT, t), soxl=seg(SX, t), vix=[[x.strftime("%Y-%m-%d"), round(float(y), 2)] for x, y in vw.items()], stats=stats))
 json.dump(out, open("/tmp/btc_soxl_windows.json", "w"), ensure_ascii=False)
 for w in out: print(w["name"], w["stats"], len(w["btc"]), len(w["soxl"]))
 t = open(f"{ROOT}/research/charts/btc_soxl_lows_template.html", encoding="utf-8").read()

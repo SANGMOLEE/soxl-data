@@ -68,7 +68,7 @@ details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;
 <h2>전후 30일</h2>
 <div class="grid2" id="cards"></div>
 <details><summary>읽는 법·자료</summary>
-<p>+1·+5·+20거래일 = 폭락일 종가 대비 그 뒤 수익률. 뒤 30일 최저 = 폭락일 뒤 30일 안 최저 종가(폭락일 종가 대비). 앞 30일 고점 대비 = 폭락 직전 30일 고점에서 폭락일 종가까지의 누적 낙폭. BTC 당일 = 같은 날 BTC 종가 수익률(참고).<br>
+<p>+1·+5·+20거래일 = 폭락일 종가 대비 그 뒤 수익률. 뒤 30일 최저 = 폭락일 뒤 30일 안 최저 종가(폭락일 종가 대비). 앞 30일 고점 대비 = 폭락 직전 30일 고점에서 폭락일 종가까지의 누적 낙폭. BTC 당일 = 같은 날 BTC 종가 수익률(참고). VIX = 그날 VIX 종가(괄호는 전일), 카드 맨 아래 회색 선이 전후 30일 VIX.<br>
 자료: SOXL 조정 종가(2010-03~2026-10-26, 분할 반영). 2026년 값은 저장소 자료 그대로이며 별도 검증하지 않았다.</p></details>
 </div>
 <script>
@@ -95,9 +95,9 @@ function niceTicks(a,b,n){const r=b-a,raw=r/n,p=Math.pow(10,Math.floor(Math.log1
 })();
 // table
 (function(){const tb=document.getElementById("tbl");const hd=el("tr");
- ["#","날짜","하루 낙폭","전일→당일 종가","앞 30일 고점 대비","+1일","+5일","+20일","뒤 30일 최저","BTC 당일"].forEach(h=>hd.append(el("th",{},h)));tb.append(hd);
+ ["#","날짜","하루 낙폭","전일→당일 종가","VIX 당일 (전일)","앞 30일 고점 대비","+1일","+5일","+20일","뒤 30일 최저","BTC 당일"].forEach(h=>hd.append(el("th",{},h)));tb.append(hd);
  D.forEach((d,i)=>{const r=el("tr",{"data-i":i});
-  [[String(d.rank)],[d.date],[pct(d.drop),"neg"],[usd(d.prev)+" → "+usd(d.close)],[pct(d.pre_high_pct),cls(d.pre_high_pct)],[pct(d.next1),cls(d.next1)],[pct(d.next5),cls(d.next5)],[pct(d.next20),cls(d.next20)],[d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—",cls(d.low_after_pct)],[pct(d.btc_same),cls(d.btc_same)]]
+  [[String(d.rank)],[d.date],[pct(d.drop),"neg"],[usd(d.prev)+" → "+usd(d.close)],[d.vix==null?"—":d.vix.toFixed(1)+(d.vix_prev==null?"":" ("+d.vix_prev.toFixed(1)+")")],[pct(d.pre_high_pct),cls(d.pre_high_pct)],[pct(d.next1),cls(d.next1)],[pct(d.next5),cls(d.next5)],[pct(d.next20),cls(d.next20)],[d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—",cls(d.low_after_pct)],[pct(d.btc_same),cls(d.btc_same)]]
   .forEach(([v,c])=>r.append(el("td",{class:c||""},v)));r.onclick=()=>select(i);tb.append(r)});
 })();
 // cards
@@ -106,14 +106,14 @@ D.forEach((d,i)=>{
  const card=el("div",{class:"card","data-i":i});
  const tt=el("div",{class:"ttl"});tt.append(el("b",{},d.rank+". "+d.date),el("span",{class:"big"},pct(d.drop)));card.append(tt);
  const ch=el("div",{class:"chips"});
- [["전일→당일",usd(d.prev)+" → "+usd(d.close)],["+1일",pct(d.next1)],["+5일",pct(d.next5)],["+20일",pct(d.next20)],["뒤 30일 최저",d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—"]]
+ [["전일→당일",usd(d.prev)+" → "+usd(d.close)],["VIX 당일",d.vix==null?"—":d.vix.toFixed(1)+(d.vix_prev==null?"":" (전일 "+d.vix_prev.toFixed(1)+")")],["+1일",pct(d.next1)],["+5일",pct(d.next5)],["+20일",pct(d.next20)],["뒤 30일 최저",d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—"]]
  .forEach(([k,v])=>{const s=el("span",{},k+" ");s.append(el("b",{},v));ch.append(s)});card.append(ch);
  card.append(chart(d,card));card.onclick=()=>select(i);cards.append(card);
 });
 function chart(d,card){
- const Wd=540,H=260,L=50,R=14,T=12,B=24,VH=44;const a=d.series;const n=a.length;
+ const Wd=540,H=310,L=50,R=14,T=12,B=24,VH=40,XH=44;const a=d.series;const n=a.length;const vmap=new Map((d.vix_series||[]).map(q=>[q[0],q[1]]));
  const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":d.date+" 전후 30일 일봉"});
- const PH=H-T-B-VH-6; // price pane height
+ const PH=H-T-B-VH-6-XH-8; // price pane height
  const X=i=>L+(i+0.5)/n*(Wd-L-R), cw=Math.max(2,(Wd-L-R)/n*0.62);
  let ymin=Math.min(...a.map(p=>p[3])),ymax=Math.max(...a.map(p=>p[2]));const pad=(ymax-ymin)*.06||1;ymin-=pad;ymax+=pad;const Y=v=>T+(ymax-v)/(ymax-ymin)*PH;
  const vmax=Math.max(...a.map(p=>p[5]))||1;const VY=v=>T+PH+6+VH-(v/vmax)*VH;
@@ -128,13 +128,21 @@ function chart(d,card){
   svg.append(svgEl("rect",{class:"body "+c,x:X(i)-cw/2,y:y1,width:cw,height:Math.max(1,y2-y1)}));
   svg.append(svgEl("rect",{class:up?"v-up":"v-dn",x:X(i)-cw/2,y:VY(p[5]),width:cw,height:T+PH+6+VH-VY(p[5])}))});
  const vl=svgEl("text",{class:"lab",x:L,y:T+PH+6+10});vl.textContent="거래량";svg.append(vl);
+ // VIX pane
+ const XT=T+PH+6+VH+8, XB=XT+XH; const vx=a.map((p,i)=>[i,vmap.get(p[0])]).filter(q=>q[1]!=null);
+ if(vx.length){let xmin=Math.min(...vx.map(q=>q[1])),xmax=Math.max(...vx.map(q=>q[1]));const xp=(xmax-xmin)*.1||1;xmin-=xp;xmax+=xp;const XY=v=>XT+(xmax-v)/(xmax-xmin)*XH;
+  svg.append(svgEl("line",{x1:L,x2:Wd-R,y1:XT-4,y2:XT-4,stroke:"var(--line)"}));
+  svg.append(svgEl("path",{class:"ser",d:vx.map((q,i)=>(i?"L":"M")+X(q[0]).toFixed(1)+" "+XY(q[1]).toFixed(1)).join(" "),style:"stroke:var(--t2);stroke-width:1.5"}));
+  const xl=svgEl("text",{class:"lab",x:L,y:XT+9});xl.textContent="VIX";svg.append(xl);
+  [xmin+xp,xmax-xp].forEach(v=>{const tx=svgEl("text",{class:"lab",x:L-6,y:XY(v)+4,"text-anchor":"end"});tx.textContent=v.toFixed(0);svg.append(tx)});
+  const dv=vmap.get(d.date);if(di>=0&&dv!=null){svg.append(svgEl("circle",{cx:X(di),cy:XY(dv),r:3.5,style:"fill:var(--low)"}));const vt=svgEl("text",{class:"lab",x:X(di)+6,y:XY(dv)+4});vt.textContent=dv.toFixed(1);svg.append(vt)}}
  const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"});svg.append(cross);
  const tip=el("div",{class:"tip"});card.append(tip);
  svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;let i=Math.round((px-L)/(Wd-L-R)*n-0.5);i=Math.max(0,Math.min(n-1,i));const p=a[i];
   cross.setAttribute("x1",X(i));cross.setAttribute("x2",X(i));cross.style.display="";
   const prev=i>0?a[i-1][4]:null;const chg=prev?(p[4]/prev-1)*100:null;
   tip.innerHTML="";tip.append(el("div",{class:"d"},p[0]+(di>=0?" ("+(i-di>0?"+":"")+(i-di)+"봉)":"")));
-  const tb=el("table");[["시가",usd(p[1])],["고가",usd(p[2])],["저가",usd(p[3])],["종가",usd(p[4])+(chg!=null?"  "+pct(chg):"")],["거래량",p[5].toLocaleString()],["폭락일比",pct((p[4]/d.close-1)*100)]].forEach(([k,v])=>{const tr=el("tr");tr.append(el("td",{},k),el("td",{},v));tb.append(tr)});tip.append(tb);
+  const tb=el("table");[["시가",usd(p[1])],["고가",usd(p[2])],["저가",usd(p[3])],["종가",usd(p[4])+(chg!=null?"  "+pct(chg):"")],["거래량",p[5].toLocaleString()],["VIX",vmap.has(p[0])?vmap.get(p[0]).toFixed(2):"—"],["폭락일比",pct((p[4]/d.close-1)*100)]].forEach(([k,v])=>{const tr=el("tr");tr.append(el("td",{},k),el("td",{},v));tb.append(tr)});tip.append(tb);
   tip.style.display="block";const cw2=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+170>cw2)lx=(ev.clientX-r.left)-184;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
  svg.addEventListener("pointerleave",()=>{cross.style.display="none";tip.style.display="none"});
  return svg;

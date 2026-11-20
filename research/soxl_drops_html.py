@@ -4,6 +4,7 @@
 """
 import os, json, pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VX = pd.read_csv(f"{ROOT}/data/macro/VIXCLS.csv", parse_dates=["date"]).set_index("date").iloc[:, 0].dropna()
 SX = pd.read_csv(f"{ROOT}/data/prices/SOXL.csv", parse_dates=["date"]).set_index("date").dropna(subset=["close"])
 s = SX["adj_close"]
 btc = pd.read_csv(f"{ROOT}/data/crypto/BTCUSD.csv", parse_dates=["date"]).set_index("date")["close"].dropna()
@@ -28,8 +29,9 @@ for rank, (d, v) in enumerate(top.items(), 1):
               low_after=(after.idxmin().strftime("%Y-%m-%d") if len(after) else None),
               low_after_pct=(round(float(after.min() / c0 - 1) * 100, 1) if len(after) else None),
               pre_high_pct=(round(float(c0 / pre.max() - 1) * 100, 1) if len(pre) else None),
-              btc_same=b_same)
-    out.append(dict(**st, series=[[x.strftime("%Y-%m-%d"), round(float(q.open), 4), round(float(q.high), 4), round(float(q.low), 4), round(float(q.close), 4), int(q.volume) if pd.notna(q.volume) else 0] for x, q in w.iterrows()]))
+              btc_same=b_same, vix=(round(float(VX.loc[:d].iloc[-1]), 2) if len(VX.loc[:d]) else None), vix_prev=(round(float(VX.loc[:d].iloc[-2]), 2) if len(VX.loc[:d]) > 1 else None))
+    vw = VX.loc[d - pd.Timedelta(days=PAD): d + pd.Timedelta(days=PAD)]
+    out.append(dict(**st, vix_series=[[x.strftime("%Y-%m-%d"), round(float(y), 2)] for x, y in vw.items()], series=[[x.strftime("%Y-%m-%d"), round(float(q.open), 4), round(float(q.high), 4), round(float(q.low), 4), round(float(q.close), 4), int(q.volume) if pd.notna(q.volume) else 0] for x, q in w.iterrows()]))
     print(rank, st)
 t = open(f"{ROOT}/research/charts/soxl_top_drops_template.html", encoding="utf-8").read()
 open(f"{ROOT}/research/charts/soxl_top_drops.html", "w", encoding="utf-8").write(t.replace("__DATA__", json.dumps(out, ensure_ascii=False)))
