@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOXL 역대 하루 낙폭 상위 10일 — 전후 한 달</title>
+<style>
+:root{color-scheme:light;
+ --surface:#fcfcfb;--card:#ffffff;--line:#e4e3df;--grid:#ecebe7;
+ --t1:#0b0b0b;--t2:#52514e;--t3:#8a8984;
+ --soxl:#2a78d6;--bar:#2a78d6;--low:#e34948;--accent:#2a78d6;--wash:rgba(42,120,214,.08);--pos:#008300}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;
+ --surface:#1a1a19;--card:#222221;--line:#3a3a38;--grid:#2c2c2b;
+ --t1:#f0efec;--t2:#c3c2b7;--t3:#8c8b85;
+ --soxl:#3987e5;--bar:#3987e5;--low:#e66767;--accent:#3987e5;--wash:rgba(57,135,229,.14);--pos:#0ca30c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--t1);font:14px/1.5 -apple-system,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--t2);margin:0 0 16px;font-size:13px}
+h2{font-size:15px;margin:18px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 6px;margin-bottom:12px;position:relative}
+.card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--wash)}
+.ttl{display:flex;justify-content:space-between;align-items:baseline;margin:0 4px 2px;gap:8px}
+.ttl b{font-size:14px}.ttl span{color:var(--t2);font-size:12px}
+.ttl .big{font-size:16px;color:var(--low);font-weight:700}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(540px,1fr));gap:12px}
+svg{display:block;width:100%;height:auto}
+.gl line{stroke:var(--grid);stroke-width:1}
+.axis text{fill:var(--t3);font-size:11px}
+.ser{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;stroke:var(--soxl)}
+.mark{stroke:var(--low);stroke-width:1;stroke-dasharray:4 3}
+.cross{stroke:var(--t3);stroke-width:1;pointer-events:none}
+.dot{stroke:var(--card);stroke-width:2;fill:var(--soxl)}
+.lab{font-size:11px;fill:var(--t2)}
+.bar{fill:var(--bar);cursor:pointer}
+.bar:hover{opacity:.85}
+.bar.on{fill:var(--low)}
+.bl{font-size:12px;fill:var(--t1)}
+.bv{font-size:12px;fill:var(--t2)}
+.tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);min-width:140px;display:none;z-index:5}
+.tip .d{color:var(--t2)}.tip b{font-size:13px}.tip i{font-style:normal;color:var(--t2);margin-left:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px 14px;margin:4px 4px 6px;font-size:12px;color:var(--t2)}
+.chips b{color:var(--t1);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:7px 10px;text-align:right;border-top:1px solid var(--line)}th{color:var(--t2);font-weight:500;border-top:0}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tr.on td{background:var(--wash)}tr{cursor:pointer}
+.pos{color:var(--pos)}.neg{color:var(--low)}
+details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;color:var(--t1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>SOXL 역대 하루 낙폭 상위 10일 — 전후 한 달</h1>
+<p class="sub">조정 종가 기준 전일 대비 하루 수익률이 가장 나빴던 10일(2010-03 상장~2026-10-26). 막대나 표의 행을 누르면 해당 날짜 카드가 강조된다. 각 카드는 그 날(빨간 점선) 앞뒤 30일 종가.</p>
+<div class="card" id="rankcard"><div class="ttl"><b>순위</b><span>전일 종가 대비 하루 수익률</span></div><div id="rank"></div></div>
+<div class="card" style="padding:0;overflow:auto"><table id="tbl"></table></div>
+<h2>전후 30일</h2>
+<div class="grid2" id="cards"></div>
+<details><summary>읽는 법·자료</summary>
+<p>+1·+5·+20거래일 = 폭락일 종가 대비 그 뒤 수익률. 뒤 30일 최저 = 폭락일 뒤 30일 안 최저 종가(폭락일 종가 대비). 앞 30일 고점 대비 = 폭락 직전 30일 고점에서 폭락일 종가까지의 누적 낙폭. BTC 당일 = 같은 날 BTC 종가 수익률(참고).<br>
+자료: SOXL 조정 종가(2010-03~2026-10-26, 분할 반영). 2026년 값은 저장소 자료 그대로이며 별도 검증하지 않았다.</p></details>
+</div>
+<script>
+const D = [{"rank": 1, "date": "2020-03-16", "drop": -38.57, "prev": 8.66, "close": 5.32, "next1": 10.0, "next5": -12.4, "next20": 59.0, "low_after": "2020-03-20", "low_after_pct": -19.9, "pre_high_pct": -75.5, "btc_same": -7.0, "series": [["2020-02-18", 20.17], ["2020-02-19", 21.73], ["2020-02-20", 20.76], ["2020-02-21", 18.9], ["2020-02-24", 16.2], ["2020-02-25", 14.71], ["2020-02-26", 14.84], ["2020-02-27", 12.74], ["2020-02-28", 13.67], ["2020-03-02", 15.02], ["2020-03-03", 13.5], ["2020-03-04", 15.48], ["2020-03-05", 14.09], ["2020-03-06", 13.24], ["2020-03-09", 9.89], ["2020-03-10", 11.77], ["2020-03-11", 9.78], ["2020-03-12", 6.8], ["2020-03-13", 8.66], ["2020-03-16", 5.32], ["2020-03-17", 5.85], ["2020-03-18", 4.33], ["2020-03-19", 4.66], ["2020-03-20", 4.26], ["2020-03-23", 4.66], ["2020-03-24", 6.25], ["2020-03-25", 6.0], ["2020-03-26", 7.21], ["2020-03-27", 6.1], ["2020-03-30", 6.75], ["2020-03-31", 6.32], ["2020-04-01", 5.29], ["2020-04-02", 5.78], ["2020-04-03", 5.44], ["2020-04-06", 7.1], ["2020-04-07", 7.01], ["2020-04-08", 7.72], ["2020-04-09", 7.21], ["2020-04-13", 7.47], ["2020-04-14", 8.46], ["2020-04-15", 7.78]]}, {"rank": 2, "date": "2026-06-05", "drop": -30.51, "prev": 262.7, "close": 182.54, "next1": 15.8, "next5": 28.6, "next20": -9.5, "low_after": "2026-06-10", "low_after_pct": -1.0, "pre_high_pct": -34.9, "btc_same": -4.5, "series": [["2026-05-06", 165.85], ["2026-05-07", 152.1], ["2026-05-08", 176.94], ["2026-05-11", 190.42], ["2026-05-12", 172.52], ["2026-05-13", 184.24], ["2026-05-14", 186.19], ["2026-05-15", 164.18], ["2026-05-18", 151.75], ["2026-05-19", 151.89], ["2026-05-20", 173.2], ["2026-05-21", 178.39], ["2026-05-22", 190.56], ["2026-05-26", 225.79], ["2026-05-27", 217.98], ["2026-05-28", 224.63], ["2026-05-29", 224.34], ["2026-06-01", 227.03], ["2026-06-02", 266.32], ["2026-06-03", 280.54], ["2026-06-04", 262.7], ["2026-06-05", 182.54], ["2026-06-08", 211.44], ["2026-06-09", 201.68], ["2026-06-10", 180.65], ["2026-06-11", 223.99], ["2026-06-12", 234.68], ["2026-06-15", 272.5], ["2026-06-16", 226.19], ["2026-06-17", 233.86], ["2026-06-18", 279.29], ["2026-06-22", 300.77], ["2026-06-23", 231.42], ["2026-06-24", 229.57], ["2026-06-25", 252.61], ["2026-06-26", 215.6], ["2026-06-29", 236.52], ["2026-06-30", 266.71], ["2026-07-01", 217.55], ["2026-07-02", 181.47]]}, {"rank": 3, "date": "2020-03-12", "drop": -30.47, "prev": 9.78, "close": 6.8, "next1": 27.4, "next5": -31.5, "next20": 6.0, "low_after": "2020-03-20", "low_after_pct": -37.4, "pre_high_pct": -68.7, "btc_same": -37.2, "series": [["2020-02-11", 20.24], ["2020-02-12", 21.13], ["2020-02-13", 21.18], ["2020-02-14", 21.04], ["2020-02-18", 20.17], ["2020-02-19", 21.73], ["2020-02-20", 20.76], ["2020-02-21", 18.9], ["2020-02-24", 16.2], ["2020-02-25", 14.71], ["2020-02-26", 14.84], ["2020-02-27", 12.74], ["2020-02-28", 13.67], ["2020-03-02", 15.02], ["2020-03-03", 13.5], ["2020-03-04", 15.48], ["2020-03-05", 14.09], ["2020-03-06", 13.24], ["2020-03-09", 9.89], ["2020-03-10", 11.77], ["2020-03-11", 9.78], ["2020-03-12", 6.8], ["2020-03-13", 8.66], ["2020-03-16", 5.32], ["2020-03-17", 5.85], ["2020-03-18", 4.33], ["2020-03-19", 4.66], ["2020-03-20", 4.26], ["2020-03-23", 4.66], ["2020-03-24", 6.25], ["2020-03-25", 6.0], ["2020-03-26", 7.21], ["2020-03-27", 6.1], ["2020-03-30", 6.75], ["2020-03-31", 6.32], ["2020-04-01", 5.29], ["2020-04-02", 5.78], ["2020-04-03", 5.44], ["2020-04-06", 7.1], ["2020-04-07", 7.01], ["2020-04-08", 7.72], ["2020-04-09", 7.21]]}, {"rank": 4, "date": "2025-04-03", "drop": -29.83, "prev": 16.26, "close": 11.41, "next1": -23.5, "next5": -15.6, "next20": 16.5, "low_after": "2025-04-08", "low_after_pct": -27.7, "pre_high_pct": -48.0, "btc_same": 0.7, "series": [["2025-03-04", 20.65], ["2025-03-05", 21.95], ["2025-03-06", 19.23], ["2025-03-07", 20.88], ["2025-03-10", 17.99], ["2025-03-11", 17.41], ["2025-03-12", 18.3], ["2025-03-13", 18.09], ["2025-03-14", 19.8], ["2025-03-17", 20.79], ["2025-03-18", 19.93], ["2025-03-19", 20.38], ["2025-03-20", 19.93], ["2025-03-21", 19.28], ["2025-03-24", 21.0], ["2025-03-25", 20.55], ["2025-03-26", 18.79], ["2025-03-27", 17.76], ["2025-03-28", 16.03], ["2025-03-31", 15.95], ["2025-04-01", 15.95], ["2025-04-02", 16.26], ["2025-04-03", 11.41], ["2025-04-04", 8.73], ["2025-04-07", 9.15], ["2025-04-08", 8.25], ["2025-04-09", 12.77], ["2025-04-10", 9.63], ["2025-04-11", 10.23], ["2025-04-14", 10.47], ["2025-04-15", 10.6], ["2025-04-16", 9.34], ["2025-04-17", 9.2], ["2025-04-21", 8.71], ["2025-04-22", 9.18], ["2025-04-23", 10.29], ["2025-04-24", 12.0], ["2025-04-25", 12.34], ["2025-04-28", 12.29], ["2025-04-29", 11.86], ["2025-04-30", 12.16], ["2025-05-01", 12.1], ["2025-05-02", 13.29]]}, {"rank": 5, "date": "2020-03-18", "drop": -25.98, "prev": 5.85, "close": 4.33, "next1": 7.6, "next5": 38.6, "next20": 92.8, "low_after": "2020-03-20", "low_after_pct": -1.6, "pre_high_pct": -80.1, "btc_same": 0.2, "series": [["2020-02-18", 20.17], ["2020-02-19", 21.73], ["2020-02-20", 20.76], ["2020-02-21", 18.9], ["2020-02-24", 16.2], ["2020-02-25", 14.71], ["2020-02-26", 14.84], ["2020-02-27", 12.74], ["2020-02-28", 13.67], ["2020-03-02", 15.02], ["2020-03-03", 13.5], ["2020-03-04", 15.48], ["2020-03-05", 14.09], ["2020-03-06", 13.24], ["2020-03-09", 9.89], ["2020-03-10", 11.77], ["2020-03-11", 9.78], ["2020-03-12", 6.8], ["2020-03-13", 8.66], ["2020-03-16", 5.32], ["2020-03-17", 5.85], ["2020-03-18", 4.33], ["2020-03-19", 4.66], ["2020-03-20", 4.26], ["2020-03-23", 4.66], ["2020-03-24", 6.25], ["2020-03-25", 6.0], ["2020-03-26", 7.21], ["2020-03-27", 6.1], ["2020-03-30", 6.75], ["2020-03-31", 6.32], ["2020-04-01", 5.29], ["2020-04-02", 5.78], ["2020-04-03", 5.44], ["2020-04-06", 7.1], ["2020-04-07", 7.01], ["2020-04-08", 7.72], ["2020-04-09", 7.21], ["2020-04-13", 7.47], ["2020-04-14", 8.46], ["2020-04-15", 7.78], ["2020-04-16", 8.35], ["2020-04-17", 8.56]]}, {"rank": 6, "date": "2020-03-09", "drop": -25.3, "prev": 13.24, "close": 9.89, "next1": 19.0, "next5": -46.2, "next20": -28.2, "low_after": "2020-03-20", "low_after_pct": -56.9, "pre_high_pct": -54.5, "btc_same": -2.3, "series": [["2020-02-10", 19.09], ["2020-02-11", 20.24], ["2020-02-12", 21.13], ["2020-02-13", 21.18], ["2020-02-14", 21.04], ["2020-02-18", 20.17], ["2020-02-19", 21.73], ["2020-02-20", 20.76], ["2020-02-21", 18.9], ["2020-02-24", 16.2], ["2020-02-25", 14.71], ["2020-02-26", 14.84], ["2020-02-27", 12.74], ["2020-02-28", 13.67], ["2020-03-02", 15.02], ["2020-03-03", 13.5], ["2020-03-04", 15.48], ["2020-03-05", 14.09], ["2020-03-06", 13.24], ["2020-03-09", 9.89], ["2020-03-10", 11.77], ["2020-03-11", 9.78], ["2020-03-12", 6.8], ["2020-03-13", 8.66], ["2020-03-16", 5.32], ["2020-03-17", 5.85], ["2020-03-18", 4.33], ["2020-03-19", 4.66], ["2020-03-20", 4.26], ["2020-03-23", 4.66], ["2020-03-24", 6.25], ["2020-03-25", 6.0], ["2020-03-26", 7.21], ["2020-03-27", 6.1], ["2020-03-30", 6.75], ["2020-03-31", 6.32], ["2020-04-01", 5.29], ["2020-04-02", 5.78], ["2020-04-03", 5.44], ["2020-04-06", 7.1], ["2020-04-07", 7.01], ["2020-04-08", 7.72]]}, {"rank": 7, "date": "2025-04-10", "drop": -24.59, "prev": 12.77, "close": 9.63, "next1": 6.2, "next5": -4.5, "next20": 46.5, "low_after": "2025-04-21", "low_after_pct": -9.6, "pre_high_pct": -54.1, "btc_same": -3.6, "series": [["2025-03-11", 17.41], ["2025-03-12", 18.3], ["2025-03-13", 18.09], ["2025-03-14", 19.8], ["2025-03-17", 20.79], ["2025-03-18", 19.93], ["2025-03-19", 20.38], ["2025-03-20", 19.93], ["2025-03-21", 19.28], ["2025-03-24", 21.0], ["2025-03-25", 20.55], ["2025-03-26", 18.79], ["2025-03-27", 17.76], ["2025-03-28", 16.03], ["2025-03-31", 15.95], ["2025-04-01", 15.95], ["2025-04-02", 16.26], ["2025-04-03", 11.41], ["2025-04-04", 8.73], ["2025-04-07", 9.15], ["2025-04-08", 8.25], ["2025-04-09", 12.77], ["2025-04-10", 9.63], ["2025-04-11", 10.23], ["2025-04-14", 10.47], ["2025-04-15", 10.6], ["2025-04-16", 9.34], ["2025-04-17", 9.2], ["2025-04-21", 8.71], ["2025-04-22", 9.18], ["2025-04-23", 10.29], ["2025-04-24", 12.0], ["2025-04-25", 12.34], ["2025-04-28", 12.29], ["2025-04-29", 11.86], ["2025-04-30", 12.16], ["2025-05-01", 12.1], ["2025-05-02", 13.29], ["2025-05-05", 13.05], ["2025-05-06", 12.64], ["2025-05-07", 13.28], ["2025-05-08", 13.66], ["2025-05-09", 14.11]]}, {"rank": 8, "date": "2025-04-04", "drop": -23.49, "prev": 11.41, "close": 8.73, "next1": 4.8, "next5": 17.2, "next20": 49.5, "low_after": "2025-04-08", "low_after_pct": -5.5, "pre_high_pct": -60.2, "btc_same": 0.9, "series": [["2025-03-05", 21.95], ["2025-03-06", 19.23], ["2025-03-07", 20.88], ["2025-03-10", 17.99], ["2025-03-11", 17.41], ["2025-03-12", 18.3], ["2025-03-13", 18.09], ["2025-03-14", 19.8], ["2025-03-17", 20.79], ["2025-03-18", 19.93], ["2025-03-19", 20.38], ["2025-03-20", 19.93], ["2025-03-21", 19.28], ["2025-03-24", 21.0], ["2025-03-25", 20.55], ["2025-03-26", 18.79], ["2025-03-27", 17.76], ["2025-03-28", 16.03], ["2025-03-31", 15.95], ["2025-04-01", 15.95], ["2025-04-02", 16.26], ["2025-04-03", 11.41], ["2025-04-04", 8.73], ["2025-04-07", 9.15], ["2025-04-08", 8.25], ["2025-04-09", 12.77], ["2025-04-10", 9.63], ["2025-04-11", 10.23], ["2025-04-14", 10.47], ["2025-04-15", 10.6], ["2025-04-16", 9.34], ["2025-04-17", 9.2], ["2025-04-21", 8.71], ["2025-04-22", 9.18], ["2025-04-23", 10.29], ["2025-04-24", 12.0], ["2025-04-25", 12.34], ["2025-04-28", 12.29], ["2025-04-29", 11.86], ["2025-04-30", 12.16], ["2025-05-01", 12.1], ["2025-05-02", 13.29]]}, {"rank": 9, "date": "2025-01-27", "drop": -23.25, "prev": 32.65, "close": 25.06, "next1": 1.2, "next5": 2.2, "next20": 0.0, "low_after": "2025-02-25", "low_after_pct": 0.0, "pre_high_pct": -28.7, "btc_same": -0.6, "series": [["2024-12-30", 27.94], ["2024-12-31", 27.31], ["2025-01-02", 27.67], ["2025-01-03", 29.82], ["2025-01-06", 32.49], ["2025-01-07", 31.15], ["2025-01-08", 30.18], ["2025-01-10", 28.06], ["2025-01-13", 27.85], ["2025-01-14", 28.12], ["2025-01-15", 29.94], ["2025-01-16", 29.99], ["2025-01-17", 32.49], ["2025-01-21", 33.69], ["2025-01-22", 35.15], ["2025-01-23", 34.92], ["2025-01-24", 32.65], ["2025-01-27", 25.06], ["2025-01-28", 25.37], ["2025-01-29", 25.68], ["2025-01-30", 27.15], ["2025-01-31", 27.02], ["2025-02-03", 25.61], ["2025-02-04", 26.25], ["2025-02-05", 27.7], ["2025-02-06", 27.69], ["2025-02-07", 26.33], ["2025-02-10", 27.35], ["2025-02-11", 27.4], ["2025-02-12", 27.54], ["2025-02-13", 28.47], ["2025-02-14", 28.55], ["2025-02-18", 29.99], ["2025-02-19", 31.47], ["2025-02-20", 31.7], ["2025-02-21", 28.81], ["2025-02-24", 26.76], ["2025-02-25", 25.07], ["2025-02-26", 26.29]]}, {"rank": 10, "date": "2026-06-23", "drop": -23.06, "prev": 300.77, "close": 231.42, "next1": -0.8, "next5": 15.2, "next20": -30.4, "low_after": "2026-07-17", "low_after_pct": -41.5, "pre_high_pct": -23.1, "btc_same": -2.0, "series": [["2026-05-26", 225.79], ["2026-05-27", 217.98], ["2026-05-28", 224.63], ["2026-05-29", 224.34], ["2026-06-01", 227.03], ["2026-06-02", 266.32], ["2026-06-03", 280.54], ["2026-06-04", 262.7], ["2026-06-05", 182.54], ["2026-06-08", 211.44], ["2026-06-09", 201.68], ["2026-06-10", 180.65], ["2026-06-11", 223.99], ["2026-06-12", 234.68], ["2026-06-15", 272.5], ["2026-06-16", 226.19], ["2026-06-17", 233.86], ["2026-06-18", 279.29], ["2026-06-22", 300.77], ["2026-06-23", 231.42], ["2026-06-24", 229.57], ["2026-06-25", 252.61], ["2026-06-26", 215.6], ["2026-06-29", 236.52], ["2026-06-30", 266.71], ["2026-07-01", 217.55], ["2026-07-02", 181.47], ["2026-07-06", 194.65], ["2026-07-07", 165.28], ["2026-07-08", 174.82], ["2026-07-09", 192.45], ["2026-07-10", 192.26], ["2026-07-13", 165.37], ["2026-07-14", 176.66], ["2026-07-15", 165.55], ["2026-07-16", 142.48], ["2026-07-17", 135.47], ["2026-07-20", 136.81], ["2026-07-21", 158.54], ["2026-07-22", 160.99], ["2026-07-23", 157.5]]}];
+let cur=0;
+const dayMs=86400000,P=d=>new Date(d+"T00:00:00Z").getTime();
+const pct=v=>v==null?"—":(v>0?"+":"")+v.toFixed(1)+"%";
+const cls=v=>v==null?"":v>0?"pos":v<0?"neg":"";
+const usd=v=>"$"+(v>=100?v.toFixed(0):v.toFixed(2));
+function el(t,a={},...c){const e=document.createElement(t);for(const k in a)e.setAttribute(k,a[k]);c.forEach(x=>e.append(x));return e}
+function svgEl(t,a={}){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);return e}
+function niceTicks(a,b,n){const r=b-a,raw=r/n,p=Math.pow(10,Math.floor(Math.log10(raw)));const m=raw/p;const step=(m<1.5?1:m<3?2:m<7?5:10)*p;const t=[];for(let v=Math.ceil(a/step)*step;v<=b;v+=step)t.push(+v.toFixed(6));return t}
+// ranking bars
+(function(){
+ const Wd=1120,rowH=26,L=150,R=70,H=rowH*D.length+10;
+ const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":"SOXL 하루 낙폭 상위 10일"});
+ const max=Math.max(...D.map(d=>-d.drop));const X=v=>L+v/max*(Wd-L-R);
+ D.forEach((d,i)=>{const y=5+i*rowH;
+  const t=svgEl("text",{class:"bl",x:L-10,y:y+rowH/2+4,"text-anchor":"end"});t.textContent=d.rank+". "+d.date;svg.append(t);
+  const b=svgEl("rect",{class:"bar",x:L,y:y+4,width:X(-d.drop)-L,height:rowH-8,rx:4,"data-i":i});b.onclick=()=>select(i);
+  const title=svgEl("title");title.textContent=d.date+" "+pct(d.drop)+" ("+usd(d.prev)+" → "+usd(d.close)+")";b.append(title);svg.append(b);
+  const v=svgEl("text",{class:"bv",x:X(-d.drop)+6,y:y+rowH/2+4});v.textContent=pct(d.drop);svg.append(v)});
+ document.getElementById("rank").append(svg);
+})();
+// table
+(function(){const tb=document.getElementById("tbl");const hd=el("tr");
+ ["#","날짜","하루 낙폭","전일→당일 종가","앞 30일 고점 대비","+1일","+5일","+20일","뒤 30일 최저","BTC 당일"].forEach(h=>hd.append(el("th",{},h)));tb.append(hd);
+ D.forEach((d,i)=>{const r=el("tr",{"data-i":i});
+  [[String(d.rank)],[d.date],[pct(d.drop),"neg"],[usd(d.prev)+" → "+usd(d.close)],[pct(d.pre_high_pct),cls(d.pre_high_pct)],[pct(d.next1),cls(d.next1)],[pct(d.next5),cls(d.next5)],[pct(d.next20),cls(d.next20)],[d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—",cls(d.low_after_pct)],[pct(d.btc_same),cls(d.btc_same)]]
+  .forEach(([v,c])=>r.append(el("td",{class:c||""},v)));r.onclick=()=>select(i);tb.append(r)});
+})();
+// cards
+const cards=document.getElementById("cards");
+D.forEach((d,i)=>{
+ const card=el("div",{class:"card","data-i":i});
+ const tt=el("div",{class:"ttl"});tt.append(el("b",{},d.rank+". "+d.date),el("span",{class:"big"},pct(d.drop)));card.append(tt);
+ const ch=el("div",{class:"chips"});
+ [["전일→당일",usd(d.prev)+" → "+usd(d.close)],["+1일",pct(d.next1)],["+5일",pct(d.next5)],["+20일",pct(d.next20)],["뒤 30일 최저",d.low_after?pct(d.low_after_pct)+" ("+d.low_after.slice(5)+")":"—"]]
+ .forEach(([k,v])=>{const s=el("span",{},k+" ");s.append(el("b",{},v));ch.append(s)});card.append(ch);
+ card.append(chart(d,card));card.onclick=()=>select(i);cards.append(card);
+});
+function chart(d,card){
+ const Wd=540,H=200,L=48,R=14,T=12,B=26;const a=d.series,t0=P(d.date);
+ const svg=svgEl("svg",{viewBox:`0 0 ${Wd} ${H}`,role:"img","aria-label":d.date+" 전후 30일"});
+ const x0=t0-30*dayMs,x1=t0+30*dayMs;const X=t=>L+(t-x0)/(x1-x0)*(Wd-L-R);
+ let ymin=Math.min(...a.map(p=>p[1])),ymax=Math.max(...a.map(p=>p[1]));const pad=(ymax-ymin)*.08||1;ymin-=pad;ymax+=pad;const Y=v=>T+(ymax-v)/(ymax-ymin)*(H-T-B);
+ const g=svgEl("g",{class:"gl"}),ax=svgEl("g",{class:"axis"});
+ niceTicks(ymin,ymax,4).forEach(v=>{g.append(svgEl("line",{x1:L,x2:Wd-R,y1:Y(v),y2:Y(v)}));const t=svgEl("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"});t.textContent=v>=100?v.toFixed(0):v.toFixed(v<10?2:1);ax.append(t)});
+ for(let i=0;i<=60;i+=10){const t=x0+i*dayMs,dt=new Date(t);const tx=svgEl("text",{x:X(t),y:H-8,"text-anchor":i===0?"start":i===60?"end":"middle"});tx.textContent=(dt.getUTCMonth()+1)+"/"+dt.getUTCDate();ax.append(tx)}
+ svg.append(g,ax);
+ svg.append(svgEl("line",{class:"mark",x1:X(t0),x2:X(t0),y1:T,y2:H-B}));
+ const path=a.map((p,i)=>(i?"L":"M")+X(P(p[0])).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");svg.append(svgEl("path",{class:"ser",d:path}));
+ const dp=a.find(p=>p[0]===d.date);if(dp){svg.append(svgEl("circle",{cx:X(t0),cy:Y(dp[1]),r:4,class:"dot",style:"fill:var(--low)"}))}
+ const cross=svgEl("line",{class:"cross",x1:0,x2:0,y1:T,y2:H-B,style:"display:none"}),dot=svgEl("circle",{r:4,class:"dot",style:"display:none"});svg.append(cross,dot);
+ const tip=el("div",{class:"tip"});card.append(tip);
+ svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect();const px=(ev.clientX-r.left)/r.width*Wd;const t=x0+(px-L)/(Wd-L-R)*(x1-x0);let best=a[0];for(const p of a)if(Math.abs(P(p[0])-t)<Math.abs(P(best[0])-t))best=p;
+  const tt=P(best[0]);cross.setAttribute("x1",X(tt));cross.setAttribute("x2",X(tt));cross.style.display="";dot.setAttribute("cx",X(tt));dot.setAttribute("cy",Y(best[1]));dot.style.display="";
+  tip.innerHTML="";tip.append(el("div",{class:"d"},best[0]+" ("+(Math.round((tt-t0)/dayMs)>0?"+":"")+Math.round((tt-t0)/dayMs)+"일)"));const row=el("div");row.append(el("b",{},usd(best[1])),el("i",{},"폭락일比 "+pct((best[1]/d.close-1)*100)));tip.append(row);
+  tip.style.display="block";const cw=card.clientWidth;let lx=(ev.clientX-r.left)+14;if(lx+160>cw)lx=(ev.clientX-r.left)-174;tip.style.left=lx+"px";tip.style.top=Math.max(8,(ev.clientY-r.top)-10)+"px"});
+ svg.addEventListener("pointerleave",()=>{cross.style.display="none";dot.style.display="none";tip.style.display="none"});
+ return svg;
+}
+function select(i){cur=i;document.querySelectorAll(".bar").forEach(b=>b.classList.toggle("on",+b.dataset.i===i));document.querySelectorAll("#tbl tr[data-i]").forEach(r=>r.classList.toggle("on",+r.dataset.i===i));document.querySelectorAll("#cards .card").forEach(c=>c.classList.toggle("on",+c.dataset.i===i));const c=document.querySelector(`#cards .card[data-i="${i}"]`);if(c&&event&&event.target.closest("#rankcard,#tbl"))c.scrollIntoView({behavior:"smooth",block:"center"})}
+select(0);
+</script>
+</body>
+</html>
