@@ -61,7 +61,7 @@ details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;
 <body>
 <div class="wrap">
 <h1>SOXL 역대 하루 낙폭 상위 10일 — 전후 한 달</h1>
-<p class="sub">종가 기준 전일 대비 하루 수익률이 가장 나빴던 10일(2010-03 상장~2026-10-26). 막대나 표의 행을 누르면 해당 날짜 카드가 강조된다. 각 카드는 그 날(점선) 앞뒤 30일 일봉 + 거래량.</p>
+<p class="sub">종가 기준 전일 대비 하루 수익률이 가장 나빴던 10일(2010-03 상장~2026-11-20). 막대나 표의 행을 누르면 해당 날짜 카드가 강조된다. 각 카드는 그 날(점선) 앞뒤 30일 일봉 + 거래량.</p>
 <div class="row"><span>캔들 색</span><div class="seg" id="colmode"><button data-c="tv" class="on">상승 초록 · 하락 빨강 (트레이딩뷰)</button><button data-c="kr">상승 빨강 · 하락 파랑 (국내)</button></div></div>
 <div class="card" id="rankcard"><div class="ttl"><b>순위</b><span>전일 종가 대비 하루 수익률</span></div><div id="rank"></div></div>
 <div class="card" style="padding:0;overflow:auto"><table id="tbl"></table></div>
@@ -69,7 +69,7 @@ details{margin-top:14px;color:var(--t2);font-size:12.5px}summary{cursor:pointer;
 <div class="grid2" id="cards"></div>
 <details><summary>읽는 법·자료</summary>
 <p>+1·+5·+20거래일 = 폭락일 종가 대비 그 뒤 수익률. 뒤 30일 최저 = 폭락일 뒤 30일 안 최저 종가(폭락일 종가 대비). 앞 30일 고점 대비 = 폭락 직전 30일 고점에서 폭락일 종가까지의 누적 낙폭. BTC 당일 = 같은 날 BTC 종가 수익률(참고). VIX = 그날 VIX 종가(괄호는 전일), 카드 맨 아래 회색 선이 전후 30일 VIX.<br>
-자료: SOXL 조정 종가(2010-03~2026-10-26, 분할 반영). 2026년 값은 저장소 자료 그대로이며 별도 검증하지 않았다.</p></details>
+자료: SOXL 조정 종가(2010-03~2026-11-20, 분할 반영). 2026년 값은 저장소 자료 그대로이며 별도 검증하지 않았다.</p></details>
 </div>
 <script>
 const D = __DATA__;
