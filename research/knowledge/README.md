@@ -8,7 +8,7 @@
 | ② Investing 딸깍 프로젝트 | claude.ai 프로젝트 지식 `btc/`·`cycle/` 10건 + 프로젝트 메모리 | `research/knowledge/investing_project/` (B절) |
 | ③ PC Downloads 보관본 | 8월 BT 세션 BBS 설계·실측 보고서, BBS 차트, 영상 스크립트, 온체인 갭 자료 | `research/knowledge/archive_2026-08/`, `charts/`, `video/`, `data/` (C절) |
 
-읽는 순서: `research/pc_project_pack/00_PROJECT_KNOWLEDGE_btc_cycle.md`(요약 1장) → `research/BOTTOM_DETECTION_PLAN_2026-11-20.md`(최종 계획) → 필요한 것만 아래에서.
+읽는 순서: `research/BTC_BOTTOM_MASTER_2026-11-20.md`(종합 연구) → `research/pc_project_pack/00_PROJECT_KNOWLEDGE_btc_cycle.md`(요약 1장) → `research/BOTTOM_DETECTION_PLAN_2026-11-20.md`(계획 원문) → 필요한 것만 아래에서.
 
 ---
 
@@ -17,6 +17,7 @@
 ### 계획·전략·기록
 | 파일 | 내용 | 상태 |
 |---|---|---|
+| `BTC_BOTTOM_MASTER_2026-11-20.md` | **종합 연구.** 어디(57~58k 중앙, A/B/C)·언제(12/3~12/16 45%)·얼마(ATH −50~−63%)·신호 체계(알람→투매→반전→상승 확인)·3분할 집행·무효 규칙·과거 저점 서명표·판단 이력 | **읽기 시작점** |
 | `BOTTOM_DETECTION_PLAN_2026-11-20.md` | 최종 저점 탐지 계획. 지표 세 층(빠른·가치·시간), 사전 등록 시나리오(A 45% / B 30% / C 25%), 시기 창(12/3~12/16 45%), 3분할 매수, 알람 체계 | **기준 문서** |
 | `FINAL_STRATEGY_SOLT_BITU.md` | SOLT·BITU 2배 ETF 사이클 전략서 v2 (상승기만 보유, 하락기 현금) | 기준. 검증 보고서는 B절 |
 | `forward_log.md` / `forward_log.csv` | 전방 검증 기록(사전 등록 10/31). 엔진 v2 자동 기록 | 진행 중 |
@@ -34,7 +35,9 @@
 |---|---|
 | `bottom_detector.py` | 빠른 층 저점 탐지 점수 0~8 (A~H), 1·2·3단계, 게이트·저점 구간, `alarm_state.json` 생성 |
 | `bcps/bcps_rebuild.py`, `bcps/bcps_series.csv`, `bcps/bcps_v11_embedded.csv` | 가치 층 BCPS(0~100) 재계산. v1.1 공식은 Investing 프로젝트에서 왔고 여기서 오늘까지 재산출 |
-| `bcps/BCPS_v1.1_TradingView.pine`, `bcps/BCPS_v1.2_TradingView.txt`, `bcps/make_pine.py` | 트레이딩뷰 지표(v1.2는 점수 내장판) |
+| `bcps/BTC_BOTTOM_DETECTOR_v2.pine` | **트레이딩뷰 v2**: 빠른 층 8조건을 차트에서 계산(점수·단계·게이트·저점 구간·반전) + BCPS v1.2 내장 + 조건표 + 경보 7종. v1.2를 대체 |
+| `bcps/BTC_BOTTOM_LEVELS_v1.pine` | 트레이딩뷰 가격선: 사전 등록 가격선 10개 + 200일·200주선 + 실현가 배수선 + 종가 이탈/돌파 경보 |
+| `bcps/BCPS_v1.1_TradingView.pine`, `bcps/BCPS_v1.2_TradingView.txt`, `bcps/make_pine.py` | 트레이딩뷰 BCPS 단독 지표(v1.2는 점수 내장판, 그대로 써도 됨) |
 | `cycle_engine_v2.py` | 2배 ETF 모의 장부 엔진(기준). `full_cycle_backtest.py`는 폐기된 v1 |
 | `cycle_signal_daily.py` | 엔진 v2 일일 상태 → `forward_log.csv` |
 | `bottom_signal_study.py` | 저점 직후 반등 신호 7종 연구(가짜 반등 구분) |
