@@ -1,10 +1,10 @@
 {
- "updated_kst": "2026-11-21 05:27 KST",
+ "updated_kst": "2026-11-21 06:19 KST",
  "soxl_last": "2026-11-19",
  "scored": 38,
  "points": 0.5263157894736842,
  "brier": 0.11043333333333333,
- "pending": 15,
+ "pending": 17,
  "by_cat": {
   "A": {
    "n": 6,
