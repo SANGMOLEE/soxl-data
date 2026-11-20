@@ -21,6 +21,7 @@
 | `FINAL_STRATEGY_SOLT_BITU.md` | SOLT·BITU 2배 ETF 사이클 전략서 v2 (상승기만 보유, 하락기 현금) | 기준. 검증 보고서는 B절 |
 | `forward_log.md` / `forward_log.csv` | 전방 검증 기록(사전 등록 10/31). 엔진 v2 자동 기록 | 진행 중 |
 | `cycle_recheck_2026-11-20.md` (+`.py`) | 11/20 사이클 재검(고점 후 410일, 첫 저점 후 143일, 중간선거 +17일) | 최신 |
+| `vix_bottom_study_2026-11-20.md` (+`vix_bottom_study.py`) | VIX가 저점 탐지에 보탬이 되는지 실측. 결론: 점수에 넣지 않음(사이클 저점 VIX 21~22로 평범, 방향 비일관, VIX 급등 단독은 신호 아님). 2단계+VIX≥30은 "충격형" 꼬리표만 | 최신 |
 | `video_compare_2026-11-20.md` (+`video_compare_calc.py`) | 자산제곱 「2027년 불장」 영상 주장 대조 — 맞는 것·틀린 것·반영한 것 | 최신 |
 | `btc_sol_realdata_findings_2026-10-31.md` | BTC·SOL·BITU·SOLT 실측(추정치 정정, BTC→SOL 시차) | 유효 |
 | `btc_bottom_and_sol_timing_2026-10-31.md` | 10/31 저점 재분석 + SOL 시차 | 유효(11/20 재검으로 갱신됨) |
@@ -89,7 +90,8 @@
 2. **BCPS와 BBS 이름**: 8월 문서는 BBS, 11월 문서는 BCPS(v1.1·v1.2). 같은 계보(두 축 분리 설계)이나 공식이 같은지는 미확인 — v1.1 공식은 `bcps/BCPS_v1.1_TradingView.pine`가 기준.
 3. **엔진 v2 버그 2건**(11/1 검증 보고서): (1) 2028-01-01 최종매도 활성화는 현재 코드에 `TOP_FORCE_FROM = 2028-01-01`로 들어가 있음(확인). (2) 약세장 저점이 신고가 뒤에도 갱신되지 않던 문제는 코드만 봐서는 수정 여부를 판정하지 못함(미확인 — 11/1 보고서의 `v2check.py`로 재현해 볼 것).
 4. **온체인 갭 자료(5/24~8/5)**: `data/crypto/BTC_ONCHAIN.csv`에 74일 전부 MVRV·실현가격이 채워져 있음(확인). `knowledge/data/`의 JSON은 원자료 보관용.
-5. **폐기 지시 문서**(`산업사이클_레버리지지도_2026-10-17.md`)는 이력용으로만 두었다.
+5. **VIX**: 점수 본체에 넣지 않기로 결정(`vix_bottom_study_2026-11-20.md`). DVOL(옵션 내재변동성)은 자료가 없어 미시험.
+6. **폐기 지시 문서**(`산업사이클_레버리지지도_2026-10-17.md`)는 이력용으로만 두었다.
 
 ## E. 갱신 규칙
 - 결론이 바뀌면 `research/`의 해당 문서 → `pc_project_pack/00_PROJECT_KNOWLEDGE_btc_cycle.md` → 이 README의 D절 순으로 고친다.
