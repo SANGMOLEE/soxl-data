@@ -4,6 +4,13 @@
  "score": 4,
  "level": 1,
  "conditions_on": "ABDH",
+ "bcps": {
+  "date": "2026-11-20",
+  "bcps": 21.1,
+  "band": 2,
+  "band_name": "저점권",
+  "min_since_aug": 18.5
+ },
  "gate": true,
  "zone": false,
  "rev_peak": false,

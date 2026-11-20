@@ -23,7 +23,7 @@ df = pd.DataFrame(rows); df["date"] = pd.to_datetime(df["time"]).dt.tz_localize(
 out = pd.DataFrame({"date": df["date"], "mvrv": pd.to_numeric(df["CapMVRVCur"], errors="coerce"), "price": pd.to_numeric(df["PriceUSD"], errors="coerce")})
 out["mcap"] = pd.to_numeric(df["CapMrktCurUSD"], errors="coerce") if "CapMrktCurUSD" in df else float("nan")
 # 보조 지표는 하나씩 따로 받는다(하나가 거부돼도 나머지는 받기 위해). 실패하면 NaN.
-for k, col in (("HashRate", "hashrate"), ("RevUSD", "rev_usd"), ("CapRealUSD", "realized_cap")):
+for k, col in (("HashRate", "hashrate"), ("RevUSD", "rev_usd"), ("IssTotUSD", "iss_usd"), ("FeeTotUSD", "fee_usd"), ("CapRealUSD", "realized_cap")):
     out[col] = float("nan")
     try:
         r2 = pd.DataFrame(fetch(k))
@@ -33,7 +33,8 @@ for k, col in (("HashRate", "hashrate"), ("RevUSD", "rev_usd"), ("CapRealUSD", "
             print("[OK]", k, int(out[col].notna().sum()))
     except Exception as e: print("[WARN]", k, e)
 # 해시프라이스(USD / TH/s / 일) = 채굴 수익 ÷ 해시레이트. 자료 없으면 NaN
-out["hashprice"] = out["rev_usd"] / out["hashrate"]
+rev = out["rev_usd"].where(out["rev_usd"].notna(), out["iss_usd"].fillna(0) + out["fee_usd"].fillna(0))
+out["hashprice"] = (rev / out["hashrate"]).where(rev > 0)
 out = out.dropna(subset=["mvrv", "price"]).sort_values("date").drop_duplicates("date"); out["realized_price"] = out["price"] / out["mvrv"]; out["source"] = "coinmetrics"
 if len(out) < 3000: print("[FAIL] 행 수 부족", len(out)); sys.exit(1)
 out.to_csv(OUT, index=False); print("[OK] onchain", len(out), out["date"].min().date(), out["date"].max().date(), out.tail(1).to_dict("records"))

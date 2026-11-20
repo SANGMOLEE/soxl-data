@@ -112,11 +112,19 @@ if __name__ == "__main__":
         if "zone" not in scan and zn: scan["zone"] = p; break
     print("   오늘 종가가 이 가격이면: 1단계", scan.get("level1"), "| 2단계", scan.get("level2"), "| 저점 구간(1차 매수 신호)", scan.get("zone"))
     print(f"   고점 후 {int(x.days_ath)}일, 시간·낙폭 조건 {bool(x.gate)} | 반전 신호: 점수정점 {bool(x.rev_peak)}, 5일고점돌파 {bool(x.rev_break)}")
-    state = dict(date=str(F.index[-1].date()), price=round(float(x.close)), score=int(x.score), level=int(x.level), conditions_on=on,
+    BC = None
+    try:
+        _bc = pd.read_csv(os.path.join(HERE, "bcps", "bcps_series.csv"), parse_dates=["date"]).set_index("date")
+        _bl = _bc.iloc[-1]; BC = dict(date=str(_bc.index[-1].date()), bcps=round(float(_bl.bcps), 1), band=int(_bl.band),
+                                   band_name=["최극단 저점", "극저점권", "저점권", "저평가", "중립", "과열", "고점권", "극고점권"][int(_bl.band)],
+                                   min_since_aug=round(float(_bc.loc["2026-08-06":].bcps.min()), 1))
+    except Exception as e: print("   BCPS 없음:", e)
+    bc_alarm = bool(BC and BC["bcps"] < 15); bc_notice = bool(BC and BC["bcps"] < 28)
+    state = dict(date=str(F.index[-1].date()), price=round(float(x.close)), score=int(x.score), level=int(x.level), conditions_on=on, bcps=BC,
                  gate=bool(x.gate), zone=bool(x.zone), rev_peak=bool(x.rev_peak), rev_break=bool(x.rev_break), days_since_ath=int(x.days_ath),
                  zone_7d=bool(F.zone.iloc[-7:].any()), oversold=bool(x.rsi_d <= 30),
-                 alarm=bool(x.zone or x.level >= 2 or ((x.rev_peak or x.rev_break) and F.zone.iloc[-30:].any()) or x.close <= REALIZED_PRICE * 1.1),
-                 notice=bool(x.level >= 1 or x.rsi_d <= 30 or x.close <= 58558.86 * 1.05 or x.close <= REALIZED_PRICE * 1.2), next_prices=scan,
+                 alarm=bool(x.zone or x.level >= 2 or ((x.rev_peak or x.rev_break) and F.zone.iloc[-30:].any()) or x.close <= REALIZED_PRICE * 1.1 or bc_alarm),
+                 notice=bool(x.level >= 1 or x.rsi_d <= 30 or x.close <= 58558.86 * 1.05 or x.close <= REALIZED_PRICE * 1.2 or bc_notice), next_prices=scan,
                  mvrv=round(float(x.close) / REALIZED_PRICE, 3), realized_price=round(REALIZED_PRICE), onchain_date=str(_O.index[-1].date()) if _O is not None else "manual",
                  mvrv_z=round(float(_O.z.iloc[-1]), 2) if _O is not None else None, onchain_zone=bool(x.close <= REALIZED_PRICE), onchain_near=bool(x.close <= REALIZED_PRICE * 1.1),
                  rsi_d=round(float(x.rsi_d), 1), rsi_w=round(float(x.rsi_w), 1), vs_ma200=round(float(x.mayer), 4), vs_ma200w=round(float(x.w200), 4),
@@ -124,5 +132,6 @@ if __name__ == "__main__":
                  trigger_prices={k: round(float(v)) for k, v in T.items()}, max_level_7d=int(F.level.iloc[-7:].max()), max_score_7d=int(F.score.iloc[-7:].max()),
                  near_realized=bool(x.close <= REALIZED_PRICE * 1.05), near_june_low=bool(x.close <= 58558.86 * 1.05))
     json.dump(state, open(os.path.join(HERE, "alarm_state.json"), "w"), ensure_ascii=False, indent=1)
+    print(f"   BCPS: {BC}")
     print(f"   온체인: MVRV {state['mvrv']} (Z {state['mvrv_z']}), 실현가격 ${state['realized_price']:,} ({state['onchain_date']}) | MVRV 1.2 ${REALIZED_PRICE*1.2:,.0f}, 1.1 ${REALIZED_PRICE*1.1:,.0f}, 1.0 ${REALIZED_PRICE:,.0f}")
     print("   alarm_state.json 기록:", state["level"], state["score"], state["conditions_on"])
