@@ -15,7 +15,8 @@
      정확히 0.5는 동전으로 보아 적중 집계에서 빼고 Brier 점수만 계산한다.
   3. source=retro (과거 수기 채점) 건은 score(1 / 0.5 / 0)를 그대로 쓴다.
 """
-import csv, json, os, sys, argparse, datetime as dt
+import csv
+import re, json, os, sys, argparse, datetime as dt
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -165,9 +166,12 @@ def score_row(row):
         res = (int(o), row.get("resolved_on", ""), row.get("est") == "1") if o is not None else None
     else:
         res = evaluate(row)
+    base_note = re.sub(r"(^| \| )오류: .*$", "", row.get("note", "")).strip(" |")
     if isinstance(res, str):
-        row["note"] = (row.get("note", "").split(" | 오류:")[0] + " | 오류: " + res).strip(" |")
+        row["note"] = (base_note + " | 오류: " + res).strip(" |")
         res = None
+    else:
+        row["note"] = base_note  # 가격이 들어와 판정되면 이전 오류 문구 제거
     if res is None:
         for k in ("outcome", "score", "brier", "resolved_on", "est"):
             if not (row["check"] == "manual" and k in ("outcome", "resolved_on")):
