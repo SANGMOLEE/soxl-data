@@ -11,6 +11,7 @@ GitHub Actions에서 매 거래일 실행. 로컬 실행도 동일하게 작동.
 """
 import os, sys, json, time, shutil, traceback
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -207,13 +208,38 @@ def collect_prices():
                     ref_dates = list(old["date"])
             continue
 
+        # v1.7 (2026-11-25) — 장이 끝나지 않은 날의 행은 저장하지 않는다.
+        # 11/24 장중(뉴욕 14:25) 수동 실행 값이 종가로 굳은 사고 재발 방지.
+        ny = datetime.now(ZoneInfo("America/New_York"))
+        if ny.hour * 60 + ny.minute < 16 * 60 + 20:
+            today_ny = pd.Timestamp(ny.date())
+            if (new["date"] >= today_ny).any():
+                ev("INFO", name, f"미마감 행 제외 ({ny:%m-%d %H:%M} 뉴욕)")
+                new = new[new["date"] < today_ny].reset_index(drop=True)
+
         compare_overlap(old, new, name)
 
         # 기존 행 보존 + 신규 날짜만 추가
+        # v1.7 — 단, 최근 REFRESH_ROWS개 행은 새 값으로 갱신(장중 값·추정 값 교정).
+        #        차이가 REFRESH_MAX를 넘으면 분할·제공처 오류일 수 있어 갱신하지 않고 경고만.
         if old is not None and len(old):
+            recent = set(old["date"].tail(C.REFRESH_ROWS))
+            upd = 0
+            for _, nr in new[new["date"].isin(recent)].iterrows():
+                k = old.index[old["date"] == nr["date"]][0]
+                oc = float(old.at[k, "close"]); nc = float(nr["close"])
+                if oc and abs(nc / oc - 1) > 1e-4:
+                    if abs(nc / oc - 1) > C.REFRESH_MAX:
+                        ev("WARN", name, f"{nr['date'].date()} 갱신 보류 — 종가 {oc:.4f}→{nc:.4f} 차이 과대")
+                        continue
+                    for col in ("open", "high", "low", "close", "adj_close", "volume", "source"):
+                        if col in old.columns and col in nr.index:
+                            old.at[k, col] = nr[col]
+                    upd += 1
+                    ev("INFO", name, f"{nr['date'].date()} 갱신 — 종가 {oc:.4f}→{nc:.4f}")
             add = new[new["date"] > old["date"].max()]
             merged = pd.concat([old, add], ignore_index=True)
-            ev("INFO", name, f"신규 {len(add)}행 추가")
+            ev("INFO", name, f"신규 {len(add)}행 추가 · 최근 행 갱신 {upd}건")
         else:
             merged = new
             ev("INFO", name, f"최초 수집 {len(new)}행")

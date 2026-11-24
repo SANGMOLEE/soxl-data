@@ -39,6 +39,8 @@ FRED_START = "1776-07-04"
 MAX_DAILY_MOVE   = 0.60   # 일간 60% 초과 변동 = 분할 의심 → 경고
 OVERLAP_CHECK    = 30     # 기존/신규 겹침 비교 일수
 OVERLAP_TOL      = 0.005  # 0.5% 초과 차이 = 출처 불일치 경고
+REFRESH_ROWS     = 5      # v1.7 최근 N행은 새 값으로 갱신 (장중·추정 값 교정)
+REFRESH_MAX      = 0.15   # 갱신 차이가 15% 넘으면 분할 의심 → 갱신 보류
 STALE_DAYS       = 4      # 최신일이 이보다 뒤처지면 STALE 판정
 
 # 발표 지연이 정상인 시리즈 — STALE 판정에서 제외
