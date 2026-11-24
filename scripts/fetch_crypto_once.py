@@ -12,6 +12,16 @@ TARGETS = {
     "BITU":   {"yahoo": "BITU",    "stooq": "bitu.us", "start": "2024-04-01"},
     "SOLT":   {"yahoo": "SOLT",    "stooq": "solt.us", "start": "2025-03-01"},
     "IBIT":   {"yahoo": "IBIT",    "stooq": "ibit.us", "start": "2024-01-01"},
+    # 알트 저점 시차 연구용(2026-11-24 추가)
+    "ETHUSD": {"yahoo": "ETH-USD", "stooq": "ethusd", "start": "2015-08-01"},
+    "XRPUSD": {"yahoo": "XRP-USD", "stooq": "xrpusd", "start": "2014-01-01"},
+    "LTCUSD": {"yahoo": "LTC-USD", "stooq": "ltcusd", "start": "2014-01-01"},
+    "BNBUSD": {"yahoo": "BNB-USD", "stooq": "bnbusd", "start": "2017-11-01"},
+    "ADAUSD": {"yahoo": "ADA-USD", "stooq": "adausd", "start": "2017-11-01"},
+    "DOGEUSD": {"yahoo": "DOGE-USD", "stooq": "dogeusd", "start": "2017-11-01"},
+    "LINKUSD": {"yahoo": "LINK-USD", "stooq": "linkusd", "start": "2017-11-01"},
+    "AVAXUSD": {"yahoo": "AVAX-USD", "stooq": "avaxusd", "start": "2020-09-01"},
+    "DOTUSD": {"yahoo": "DOT-USD", "stooq": "dotusd", "start": "2020-08-01"},
 }
 OUT = os.path.join(os.path.dirname(__file__), "..", "data", "crypto")
 os.makedirs(OUT, exist_ok=True)
