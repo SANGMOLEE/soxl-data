@@ -5,7 +5,7 @@ from pandas.tseries.holiday import USFederalHolidayCalendar
 COST=0.20
 def build(cost=COST):
     s1=m1('SOL'); c=s1.c
-    days=pd.bdate_range('2020-08-12','2026-11-13'); hol=USFederalHolidayCalendar().holidays('2020-01-01','2027-01-01')
+    days=pd.bdate_range('2020-08-12','2026-11-24'); hol=USFederalHolidayCalendar().holidays('2020-01-01','2027-01-01')
     days=[d for d in days if d not in hol]
     closes=[]
     for d in days:
