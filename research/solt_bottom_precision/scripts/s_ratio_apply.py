@@ -46,6 +46,6 @@ print("\n== ETH 자체: 역대 ETH 바닥 비율 × 현재 ETH 실현가격 ${:,
 for d,lo in [('2018-12-15',81.79),('2020-03-13',86.00),('2022-06-18',881.56)]:
     r=lo/cme.realized_price.asof(pd.Timestamp(d)); print(f"  {d}: 비율 {r:.2f} → ETH ${cme.realized_price.iloc[-1]*r:,.0f} (현재 대비 {cme.realized_price.iloc[-1]*r/now['ETH']-1:+.0%})")
 # 현재 사이클 지금까지의 비율
-for d,lo in [('2026-06-30',None),('2026-11-21',55130.0)]:
+for d,lo in [('2026-07-01',None),('2026-11-21',55130.0)]:
     d=pd.Timestamp(d); lo=lo or b1.l[d.tz_localize('UTC'):d.tz_localize('UTC')+pd.Timedelta(days=1)].min()
     print(f"현재 사이클 {d.date()} 장중 저점 ${lo:,.0f} → 그날 실현가격 대비 {lo/rp.asof(d):.2f}")
