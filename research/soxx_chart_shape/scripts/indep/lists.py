@@ -1,0 +1,11 @@
+from pat2 import *
+base=dict(N=10,ddc=-0.30,clv=0.8,rallyk=2.0,depthmax=1.5,reclaim=True,use_rally=True)
+ev,raw,PL,RH=events(N=10,ddc=-0.25,clv=0.7,rallyk=1.5,depthmax=2,reclaim=True)
+r=evaluate(ev,PL,RH,'LOOSE2',show=True)
+mr=np.nan_to_num(d.maxr4z.values,nan=-9)
+ev,raw,PL,RH=events(**{**base,'rallyk':-99,'ddc':-0.2,'clv':0.6,'depthmax':99,'extra':mr>=2.0})
+r=evaluate(ev,PL,RH,'ALT 1d>=2σ',show=True)
+ev,raw,PL,RH=events(**{**base,'use_rally':False,'depthmax':99})
+r=evaluate(ev,PL,RH,'F2 hammer@newlow+reclaim')
+x=pd.DataFrame({'yr':d.date.dt.year.values[ev],'ep':d.ep.values[ev],'z5':r['z5'],'z20':r['z20'],'hl':r['hlo'],'ph':r['ph']})
+print(x.groupby('ep').agg(n=('yr','size'),y0=('yr','min'),y1=('yr','max'),neg5=('z5',lambda v:(v<0).mean()),neg20=('z20',lambda v:(v<0).mean()),mz20=('z20','median'),hl=('hl','mean'),ph=('ph','mean')).round(2))
