@@ -74,7 +74,7 @@ fig.tight_layout(rect=(0,0,1,0.96)); fig.savefig(f'{CH}/u3_now_soxx_soxl.png'); 
 S3=pd.read_csv(f'{OUT}/b3_springs.csv',parse_dates=['날짜'])
 kinds=[l.split('→ ')[1] for l in open(f'{OUT}/b_events.txt').read().split('== B5')[1].splitlines() if '→' in l]
 done=S3[S3.결과!='진행중'].reset_index(drop=True)
-groups=[('넥라인 먼저 돌파',BLUE,lambda k:k.startswith('넥라인')),('한 번 더 깨진 뒤 30일 안 사이클 바닥',AQUA,lambda k:'사이클 바닥' in k and not k.startswith('넥라인')),('한 번 더 깨진 뒤 하락 지속',ORANGE,lambda k:'하락 지속' in k)]
+groups=[('넥라인 먼저 돌파',BLUE,lambda k:k.startswith('넥라인')),('깨진 뒤 30일 안 주가 최종 바닥 (모두 고점 8개월 뒤)',AQUA,lambda k:'사이클 바닥' in k and not k.startswith('넥라인')),('깨진 뒤 하락 지속 (고점 7개월 안 4번 모두 여기)',ORANGE,lambda k:'하락 지속' in k)]
 fig,axs=plt.subplots(1,3,figsize=(16,6.5),sharey=True)
 b=N-1; nowy=C[b]/Lo[b]*100-100
 for ax,(nm,col,f) in zip(axs,groups):
